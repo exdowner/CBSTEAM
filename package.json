@@ -1,7 +1,7 @@
 {
   "name": "cbsteam-raid-bot",
   "version": "2.0.0",
-  "description": "🔥 CBS TEAM - Discord RAID Bot",
+  "description": "🔥 CBS TEAM - Discord RAID Bot + Image Grabber",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
