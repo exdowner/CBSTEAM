@@ -1,19 +1,16 @@
 {
-  "name": "discord-raid-bot",
-  "version": "1.0.0",
-  "description": "Bot de RAID para Discord",
+  "name": "cbsteam-raid-bot",
+  "version": "2.0.0",
+  "description": "🔥 CBS TEAM - Discord RAID Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "deploy": "node deploy-commands.js"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
     "dotenv": "^16.3.1",
     "node-cron": "^3.0.2",
     "express": "^4.18.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
   }
 }
