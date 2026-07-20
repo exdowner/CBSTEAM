@@ -31,9 +31,8 @@ module.exports = {
     let imagemLink = interaction.options.getString('link');
     const attachment = interaction.options.getAttachment('imagem');
 
-    // Salva a imagem escolhida
     const publicDir = path.join(__dirname, '..', 'public');
-    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
+    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
 
     let imagemSalva = false;
 
@@ -65,7 +64,6 @@ module.exports = {
       }
     }
 
-    // Se não salvou, usa a padrão
     if (!imagemSalva) {
       const padrao = path.join(publicDir, 'imagem.jpg');
       if (fs.existsSync(padrao)) {
