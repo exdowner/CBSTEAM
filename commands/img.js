@@ -31,32 +31,23 @@ module.exports = {
     let imagemUrl = interaction.options.getString('link');
     const attachment = interaction.options.getAttachment('imagem');
 
-    // Se tiver upload, baixa a imagem e salva com o nome do ID
     if (attachment) {
       imagemUrl = attachment.url;
     }
 
-    // Se tiver link ou upload, baixa a imagem e salva localmente
+    // Baixa a imagem e salva localmente com o ID
     if (imagemUrl) {
       try {
         const response = await fetch(imagemUrl);
         const buffer = await response.buffer();
         const publicDir = path.join(__dirname, '..', 'public');
         if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
-        
-        // Tenta salvar como .jpg, se falhar, tenta .png
-        let savedPath = path.join(publicDir, `${id}.jpg`);
-        try {
-          fs.writeFileSync(savedPath, buffer);
-        } catch (e) {
-          savedPath = path.join(publicDir, `${id}.png`);
-          fs.writeFileSync(savedPath, buffer);
-        }
+        fs.writeFileSync(path.join(publicDir, `${id}.jpg`), buffer);
       } catch (e) {
         console.error('❌ Erro ao baixar imagem:', e);
       }
     } else {
-      // Se não forneceu imagem, usa a imagem padrão da pasta public
+      // Usa imagem padrão
       const publicDir = path.join(__dirname, '..', 'public');
       const padraoJpg = path.join(publicDir, 'imagem.jpg');
       const padraoPng = path.join(publicDir, 'imagem.png');
@@ -65,12 +56,10 @@ module.exports = {
       } else if (fs.existsSync(padraoPng)) {
         fs.copyFileSync(padraoPng, path.join(publicDir, `${id}.png`));
       } else {
-        // Se não houver padrão, baixa um GIF de fallback
+        // Fallback: baixa um GIF
         try {
           const response = await fetch('https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif');
           const buffer = await response.buffer();
-          const publicDir = path.join(__dirname, '..', 'public');
-          if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
           fs.writeFileSync(path.join(publicDir, `${id}.jpg`), buffer);
         } catch (e) {}
       }
@@ -85,7 +74,7 @@ module.exports = {
         { name: '🆔 ID', value: `\`${id}\``, inline: true },
         { name: '📝 Dica', value: 'Cole o link no navegador ou compartilhe com alguém!' }
       )
-      .setImage(link) // Mostra a imagem no embed (opcional)
+      .setImage(link)
       .setFooter({ text: 'CBS TEAM - Image Grabber' })
       .setTimestamp();
 
