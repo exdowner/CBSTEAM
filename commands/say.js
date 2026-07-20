@@ -38,7 +38,7 @@ module.exports = {
     )
     .addStringOption(option =>
       option.setName('cor')
-        .setDescription('Cor do embed (padrão: vermelho)')
+        .setDescription('Cor do embed')
         .setRequired(false)
         .addChoices(
           { name: '🔴 Vermelho', value: '#FF0000' },
@@ -51,7 +51,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    // Pega as opções
+    // ===== PEGA AS OPÇÕES =====
     const mensagem = interaction.options.getString('mensagem');
     const canal = interaction.options.getChannel('canal') || interaction.channel;
     const embedMode = interaction.options.getBoolean('embed') || false;
@@ -60,15 +60,33 @@ module.exports = {
     const titulo = interaction.options.getString('titulo') || 'Mensagem do Bot';
     const cor = interaction.options.getString('cor') || '#FF0000';
 
-    // Responde ao usuário que a mensagem foi enviada
+    // ===== VERIFICA SE O CANAL EXISTE =====
+    if (!canal) {
+      return interaction.reply({ 
+        content: '❌ Canal não encontrado ou inválido.', 
+        flags: 64 
+      });
+    }
+
+    // ===== VERIFICA PERMISSÃO DO BOT NO CANAL =====
+    const botMember = interaction.guild.members.cache.get(interaction.client.user.id);
+    if (!botMember.permissionsIn(canal).has('SendMessages')) {
+      return interaction.reply({ 
+        content: `❌ Não tenho permissão para enviar mensagens em ${canal}.`, 
+        flags: 64 
+      });
+    }
+
+    // ===== RESPOSTA PRO USUÁRIO =====
     await interaction.reply({ 
       content: `✅ Mensagem enviada para ${canal}`,
-      flags: 64 // ephemeral
+      flags: 64 
     });
 
+    // ===== ENVIA A MENSAGEM =====
     try {
       if (embedMode) {
-        // ===== MODO EMBED =====
+        // Embed
         const embed = new EmbedBuilder()
           .setTitle(titulo)
           .setDescription(mensagem)
@@ -79,7 +97,6 @@ module.exports = {
             iconURL: interaction.user.displayAvatarURL()
           });
 
-        // Adiciona imagem se tiver
         if (imagemAnexo) {
           embed.setImage(imagemAnexo.url);
         } else if (linkImagem) {
@@ -88,10 +105,9 @@ module.exports = {
 
         await canal.send({ embeds: [embed] });
       } else {
-        // ===== MODO TEXTO =====
+        // Texto normal
         let conteudo = mensagem;
 
-        // Adiciona imagem se tiver
         if (imagemAnexo) {
           await canal.send({ content: conteudo, files: [imagemAnexo] });
         } else if (linkImagem) {
