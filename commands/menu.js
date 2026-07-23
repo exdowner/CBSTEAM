@@ -3,10 +3,11 @@ const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = re
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('menu')
-    .setDescription('📋 Abre o menu principal com todos os comandos'),
+    .setDescription('📋 Abre o menu com botões para todos os comandos'),
 
   async execute(interaction, client) {
     try {
+      // Linha 1: comandos principais
       const row1 = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
@@ -27,6 +28,7 @@ module.exports = {
             .setStyle(ButtonStyle.Secondary)
         );
 
+      // Linha 2: comandos de moderação
       const row2 = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
@@ -47,6 +49,7 @@ module.exports = {
             .setStyle(ButtonStyle.Danger)
         );
 
+      // Linha 3: outros comandos
       const row3 = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
@@ -60,9 +63,9 @@ module.exports = {
         );
 
       await interaction.reply({
-        content: '🔥 **CBS TEAM - MENU DE COMANDOS**\nClique nos botões abaixo para executar os comandos:',
+        content: '🔥 **CBS TEAM - MENU DE COMANDOS**\nClique nos botões abaixo para executar cada comando:',
         components: [row1, row2, row3],
-        ephemeral: true
+        ephemeral: true // só você vê
       });
 
     } catch (error) {
